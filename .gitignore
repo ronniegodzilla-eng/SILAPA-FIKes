@@ -1,0 +1,25 @@
+/node_modules
+/.next
+/out
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.local
+.env*.local
+serviceAccountKey.json
+
+# Data mahasiswa/dosen asli (nama, NIM, HP, email) — jangan pernah di-commit.
+# Dipakai lokal oleh scripts/seed.ts; tidak perlu (dan tidak boleh) masuk git.
+/data/
+
+.DS_Store
+*.log
+npm-debug.log*
+
+# Portable JDK 21 for Firestore Emulator (system Java is too old) — see npm run test:rules
+.jdk21
+firebase-debug.log
+firestore-debug.log

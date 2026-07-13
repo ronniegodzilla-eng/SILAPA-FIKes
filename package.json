@@ -1,0 +1,39 @@
+{
+  "name": "silapa-fikes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SILAPA-FIKes — Sistem Informasi Pelaporan Pembimbing Akademik, FIKes Universitas Ibnu Sina",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "setup": "tsx scripts/setup-firebase.ts",
+    "seed": "tsx scripts/seed.ts",
+    "migrate:roles": "tsx scripts/migrate-roles.ts",
+    "update:email": "tsx scripts/update-user-email.ts",
+    "deploy:rules": "tsx scripts/deploy-rules.ts",
+    "test:rules": "JAVA_HOME=\"$PWD/.jdk21/Contents/Home\" firebase emulators:exec --only firestore --project demo-silapa-fikes \"tsx tests/firestore-rules.test.ts\""
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
+    "firebase": "^10.13.2",
+    "jose": "^6.2.3",
+    "next": "14.2.15",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "@types/node": "^20.14.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "firebase-admin": "^12.5.0",
+    "firebase-tools": "^15.23.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

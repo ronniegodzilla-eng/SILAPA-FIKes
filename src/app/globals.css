@@ -1,0 +1,119 @@
+:root {
+  --app-bg: #F5F7F1;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-serif: 'Lora', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--app-bg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  color: #1B241D;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: #C7D2C1;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-sans);
+}
+
+a {
+  color: #0B6E3C;
+}
+a:hover {
+  color: #073B21;
+}
+
+/*
+ * Sengaja pakai margin-top (bukan transform: translateY) untuk efek "naik".
+ * `.silapa-fade` membungkus konten halaman DAN modal position:fixed di
+ * banyak halaman — sebuah `transform` selain `none` (termasuk identity
+ * matrix di frame terakhir) membuat elemen jadi containing block baru
+ * untuk descendant fixed/absolute, sehingga modal fixed ikut terjebak
+ * di dalam tinggi wrapper alih-alih terpaku ke viewport.
+ */
+@keyframes silapaFadeUp {
+  from {
+    opacity: 0;
+    margin-top: 8px;
+  }
+  to {
+    opacity: 1;
+    margin-top: 0;
+  }
+}
+
+@keyframes silapaSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.silapa-fade {
+  animation: silapaFadeUp 0.35s ease both;
+}
+
+/* Native control accent to match brand green */
+input[type='checkbox'] {
+  accent-color: #0B6E3C;
+  width: 15px;
+  height: 15px;
+}
+
+/* Clickable name cell in tables — hover makes the affordance obvious */
+.silapa-name-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.silapa-name-link::after {
+  content: '→';
+  font-weight: 700;
+  color: #0B6E3C;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+td:hover > .silapa-name-link,
+.silapa-name-cell:hover .silapa-name-link {
+  color: #0B6E3C;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transform: translateX(2px);
+}
+td:hover > .silapa-name-link::after,
+.silapa-name-cell:hover .silapa-name-link::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+.silapa-name-cell:hover {
+  background: #F5F7F1;
+}

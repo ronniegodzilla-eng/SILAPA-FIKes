@@ -1,0 +1,196 @@
+/**
+ * Test suite Security Rules terhadap Firestore Emulator (PRD §9: "Security
+ * Rules teruji dengan emulator"). Skenario mencakup setiap cabang izin di
+ * firestore.rules — termasuk yang HARUS ditolak (bukan cuma yang harus
+ * berhasil), dan defence-in-depth IPK 0–4 (bug lama: sel `46268.0`).
+ *
+ * Urutan skenario disengaja: setiap cek "BUKAN pemilik → deny" dijalankan
+ * SEBELUM cek "pemilik → allow" pada dokumen yang sama, dan pengujian tulis
+ * periode memakai dokumen terpisah — supaya satu skenario tidak diam-diam
+ * mengubah state (mis. mengunci periode) yang dipakai skenario berikutnya.
+ * Baca pakai getDocFromServer (bukan getDoc) agar tidak lolos lewat cache lokal.
+ *
+ * Run: npm run test:rules
+ * (firebase emulators:exec menjalankan file ini di dalam Firestore Emulator
+ * lokal — tidak menyentuh project Firebase asli.)
+ */
+import { readFileSync } from 'node:fs';
+import {
+  initializeTestEnvironment,
+  assertSucceeds,
+  assertFails,
+  type RulesTestEnvironment,
+} from '@firebase/rules-unit-testing';
+import { doc, setDoc, getDocFromServer, updateDoc, deleteDoc } from 'firebase/firestore';
+
+const PROJECT_ID = 'demo-silapa-fikes';
+
+let testEnv: RulesTestEnvironment;
+let passed = 0;
+let failed = 0;
+const failures: string[] = [];
+
+async function check(name: string, fn: () => Promise<unknown>) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } catch (e: any) {
+    failed++;
+    failures.push(name);
+    console.log(`  ✗ ${name}`);
+    console.log(`      ${e?.message ?? e}`);
+  }
+}
+
+async function seed() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'users/admin1'), { uid: 'admin1', nama: 'Admin', email: 'admin@test.id', roles: ['admin'], aktif: true });
+    await setDoc(doc(db, 'users/wadek1'), { uid: 'wadek1', nama: 'Wadek', email: 'wadek@test.id', roles: ['wadek1'], aktif: true });
+    await setDoc(doc(db, 'users/dosenA'), { uid: 'dosenA', nama: 'Dosen A', email: 'a@test.id', roles: ['dosen_pa'], aktif: true });
+    await setDoc(doc(db, 'users/dosenB'), { uid: 'dosenB', nama: 'Dosen B', email: 'b@test.id', roles: ['dosen_pa'], aktif: true });
+    // Dipakai HANYA untuk uji "admin ubah roles user lain" — sengaja terpisah
+    // dari dosenB, supaya menaikkan perannya jadi admin tidak diam-diam
+    // membuat dosenB lolos semua cek "bukan pemilik → deny" di bawah.
+    await setDoc(doc(db, 'users/throwaway'), { uid: 'throwaway', nama: 'Throwaway', email: 't@test.id', roles: ['dosen_pa'], aktif: true });
+
+    await setDoc(doc(db, 'periode/2025-genap'), { tahunAkademik: '2025/2026', semester: 'genap', status: 'dibuka' });
+    await setDoc(doc(db, 'periode/2024-genap'), { tahunAkademik: '2024/2025', semester: 'genap', status: 'dikunci' });
+    // Dokumen terpisah khusus uji izin TULIS periode — supaya periode/2025-genap
+    // tetap "dibuka" untuk skenario laporan/submissions di bawah.
+    await setDoc(doc(db, 'periode/write-test'), { tahunAkademik: '2099/2100', semester: 'genap', status: 'draft' });
+
+    await setDoc(doc(db, 'mahasiswa/1001'), {
+      npm: '1001', nama: 'Mhs A', prodi: 'K3', dosenPaUid: 'dosenA',
+      pkkmb: false, toefl: false, esq: false, semkesCount: 0,
+    });
+
+    const emptyAkademik = { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] };
+    await setDoc(doc(db, 'laporan/2025-genap_1001'), {
+      periodeId: '2025-genap', npm: '1001', dosenPaUid: 'dosenA', prodi: 'K3', status: 'aktif', akademik: emptyAkademik,
+    });
+    await setDoc(doc(db, 'laporan/2024-genap_9001'), {
+      periodeId: '2024-genap', npm: '9001', dosenPaUid: 'dosenA', prodi: 'K3', status: 'aktif', akademik: emptyAkademik,
+    });
+
+    await setDoc(doc(db, 'submissions/2025-genap_dosenA'), {
+      periodeId: '2025-genap', dosenUid: 'dosenA', nama: 'Dosen A', status: 'draft',
+    });
+  });
+}
+
+async function main() {
+  testEnv = await initializeTestEnvironment({
+    projectId: PROJECT_ID,
+    firestore: {
+      rules: readFileSync('firestore.rules', 'utf8'),
+      host: '127.0.0.1',
+      port: 8080,
+    },
+  });
+
+  await seed();
+
+  const admin = testEnv.authenticatedContext('admin1').firestore();
+  const wadek = testEnv.authenticatedContext('wadek1').firestore();
+  const dosenA = testEnv.authenticatedContext('dosenA').firestore();
+  const dosenB = testEnv.authenticatedContext('dosenB').firestore();
+  const anon = testEnv.unauthenticatedContext().firestore();
+
+  const emptyAkademik = { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] };
+
+  console.log('\nusers/{uid}');
+  await check('dosen baca dokumennya sendiri → allow', () => assertSucceeds(getDocFromServer(doc(dosenA, 'users/dosenA'))));
+  await check('dosen baca dokumen dosen lain → deny', () => assertFails(getDocFromServer(doc(dosenA, 'users/dosenB'))));
+  await check('admin baca dokumen siapa pun → allow', () => assertSucceeds(getDocFromServer(doc(admin, 'users/dosenA'))));
+  await check('wadek baca dokumen siapa pun → allow', () => assertSucceeds(getDocFromServer(doc(wadek, 'users/dosenA'))));
+  await check('anon baca users → deny', () => assertFails(getDocFromServer(doc(anon, 'users/dosenA'))));
+  await check('dosen ubah dokumennya sendiri → deny', () => assertFails(updateDoc(doc(dosenA, 'users/dosenA'), { nama: 'Diubah' })));
+  await check('wadek ubah dokumen user → deny', () => assertFails(updateDoc(doc(wadek, 'users/dosenA'), { nama: 'Diubah' })));
+  await check('admin ubah roles user lain → allow', () => assertSucceeds(updateDoc(doc(admin, 'users/throwaway'), { roles: ['dosen_pa', 'admin'] })));
+
+  console.log('\nperiode/{periodeId}');
+  await check('dosen baca periode → allow', () => assertSucceeds(getDocFromServer(doc(dosenA, 'periode/2025-genap'))));
+  await check('anon baca periode → deny', () => assertFails(getDocFromServer(doc(anon, 'periode/2025-genap'))));
+  await check('dosen tulis periode → deny', () => assertFails(updateDoc(doc(dosenA, 'periode/write-test'), { status: 'dibuka' })));
+  await check('admin tulis periode → allow', () => assertSucceeds(updateDoc(doc(admin, 'periode/write-test'), { status: 'dibuka' })));
+  await check('wadek tulis periode → allow', () => assertSucceeds(updateDoc(doc(wadek, 'periode/write-test'), { status: 'dikunci' })));
+
+  console.log('\nmahasiswa/{npm}');
+  await check('dosen create mahasiswa baru → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'mahasiswa/9999'), { npm: '9999', nama: 'Baru', dosenPaUid: 'dosenA' })));
+  await check('admin create mahasiswa baru → allow', () =>
+    assertSucceeds(setDoc(doc(admin, 'mahasiswa/9999'), { npm: '9999', nama: 'Baru', dosenPaUid: 'dosenA' })));
+  await check('dosen delete mahasiswa → deny', () => assertFails(deleteDoc(doc(dosenA, 'mahasiswa/1001'))));
+  await check('admin delete mahasiswa → allow', () => assertSucceeds(deleteDoc(doc(admin, 'mahasiswa/9999'))));
+  await check('dosen BUKAN pemilik ubah field diizinkan → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { toefl: true })));
+  await check('dosen pemilik ubah field diizinkan (toefl) → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { toefl: true })));
+  await check('dosen pemilik ubah field TIDAK diizinkan (nama) → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { nama: 'Diubah Paksa' })));
+  await check('dosen pemilik unggah bukti TOEFL (toeflBukti) → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { toeflBukti: 'https://drive.google.com/file/d/xyz' })));
+  await check('dosen BUKAN pemilik unggah bukti TOEFL → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { toeflBukti: 'https://drive.google.com/file/d/xyz' })));
+  await check('admin ubah field apa pun di mahasiswa → allow', () =>
+    assertSucceeds(updateDoc(doc(admin, 'mahasiswa/1001'), { nama: 'Diubah Admin' })));
+
+  console.log('\nlaporan/{id}');
+  await check('dosen BUKAN pemilik baca laporan → deny', () => assertFails(getDocFromServer(doc(dosenB, 'laporan/2025-genap_1001'))));
+  await check('dosen pemilik baca laporannya → allow', () => assertSucceeds(getDocFromServer(doc(dosenA, 'laporan/2025-genap_1001'))));
+  await check('wadek baca laporan siapa pun → allow', () => assertSucceeds(getDocFromServer(doc(wadek, 'laporan/2025-genap_1001'))));
+  await check('dosen create laporan → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'laporan/2025-genap_9002'), { periodeId: '2025-genap', npm: '9002', dosenPaUid: 'dosenA', status: 'aktif', akademik: emptyAkademik })));
+  await check('admin create laporan → allow', () =>
+    assertSucceeds(setDoc(doc(admin, 'laporan/2025-genap_9002'), { periodeId: '2025-genap', npm: '9002', dosenPaUid: 'dosenA', status: 'aktif', akademik: emptyAkademik })));
+  await check('dosen BUKAN pemilik update laporan → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'laporan/2025-genap_1001'), { akademik: { ...emptyAkademik, ipKhs: 3.0 } })));
+  await check('dosen pemilik update IPK TIDAK valid (46268, bug lama) → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { akademik: { ...emptyAkademik, sksKrs: 20, ipKhs: 46268 } })));
+  await check('dosen pemilik update laporan di periode TERKUNCI → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'laporan/2024-genap_9001'), { akademik: { ...emptyAkademik, ipKhs: 3.0 } })));
+  await check('admin update laporan di periode TERKUNCI → deny (immutable utk semua)', () =>
+    assertFails(updateDoc(doc(admin, 'laporan/2024-genap_9001'), { status: 'lulus' })));
+  await check('dosen pemilik update IPK valid (3.5) di periode terbuka → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { akademik: { ...emptyAkademik, sksKrs: 20, ipKhs: 3.5 } })));
+  await check('dosen delete laporan → deny', () => assertFails(deleteDoc(doc(dosenA, 'laporan/2025-genap_1001'))));
+  await check('admin delete laporan → allow', () => assertSucceeds(deleteDoc(doc(admin, 'laporan/2025-genap_9002'))));
+
+  console.log('\nsubmissions/{id}');
+  await check('dosen BUKAN pemilik baca submission → deny', () => assertFails(getDocFromServer(doc(dosenB, 'submissions/2025-genap_dosenA'))));
+  await check('dosen pemilik baca submission-nya → allow', () => assertSucceeds(getDocFromServer(doc(dosenA, 'submissions/2025-genap_dosenA'))));
+  await check('dosen create submission → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'submissions/2025-genap_dosenB'), { periodeId: '2025-genap', dosenUid: 'dosenB', status: 'draft' })));
+  await check('admin create submission → allow', () =>
+    assertSucceeds(setDoc(doc(admin, 'submissions/2025-genap_dosenB'), { periodeId: '2025-genap', dosenUid: 'dosenB', status: 'draft' })));
+  await check('dosen BUKAN pemilik update submission → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'submissions/2025-genap_dosenA'), { status: 'dikirim' })));
+  await check('dosen pemilik update submission (kirim) di periode terbuka → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { status: 'dikirim' })));
+  await check('wadek update submission (verifikasi) → allow', () =>
+    assertSucceeds(updateDoc(doc(wadek, 'submissions/2025-genap_dosenA'), { status: 'diverifikasi' })));
+
+  console.log('\nrekapCache/{periodeId}');
+  await check('dosen baca rekapCache → deny', () => assertFails(getDocFromServer(doc(dosenA, 'rekapCache/2025-genap'))));
+  await check('dosen tulis rekapCache → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'rekapCache/2025-genap'), { computedAt: Date.now() })));
+  await check('admin tulis rekapCache → allow', () =>
+    assertSucceeds(setDoc(doc(admin, 'rekapCache/2025-genap'), { computedAt: Date.now(), aggregates: {} })));
+  await check('wadek baca rekapCache → allow', () => assertSucceeds(getDocFromServer(doc(wadek, 'rekapCache/2025-genap'))));
+
+  await testEnv.cleanup();
+
+  console.log(`\n${passed} lolos, ${failed} gagal dari ${passed + failed} skenario.`);
+  if (failed > 0) {
+    console.log('Skenario gagal:', failures.join(', '));
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+main().catch((e) => {
+  console.error('Test rules gagal dijalankan:', e);
+  process.exit(1);
+});
