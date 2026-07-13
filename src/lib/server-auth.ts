@@ -31,12 +31,19 @@ export async function requireRole(
     return new Response('Tidak terautentikasi — sertakan Firebase ID token.', { status: 401 });
   }
 
-  const db = getAdminDb(); // ensures the admin app is initialized
-  void db;
+  try {
+    getAdminDb(); // ensures the admin app is initialized
+  } catch (e: any) {
+    console.error('Inisialisasi Firebase Admin gagal (cek FIREBASE_SERVICE_ACCOUNT_KEY):', e?.message ?? e);
+    return new Response('Konfigurasi server bermasalah — hubungi admin.', { status: 500 });
+  }
   let decoded;
   try {
     decoded = await getAuth(getApps()[0]).verifyIdToken(token);
-  } catch {
+  } catch (e: any) {
+    // Log detail asli ke server (mis. Vercel Runtime Logs) untuk diagnosis —
+    // pesan ke client tetap generik agar tidak membocorkan detail ke penyerang.
+    console.error('verifyIdToken gagal:', e?.errorInfo ?? e?.message ?? e);
     return new Response('Token tidak valid atau kedaluwarsa.', { status: 401 });
   }
 
