@@ -8,6 +8,35 @@ import { computeDosenStats, computeDosenRekap } from '@/lib/compute';
 import { downloadWithAuth } from '@/lib/download';
 import { colors } from '@/lib/theme';
 import { Card, Icon } from '@/components/ui';
+import { FeatureTour, type TourStep } from '@/components/FeatureTour';
+
+const DOSEN_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="dosen-kpi"]',
+    title: 'Ringkasan kelengkapan',
+    body: 'Empat kartu ini menunjukkan status pengisian laporan mahasiswa bimbingan Anda: Total, Lengkap, Sebagian, dan Kosong.',
+  },
+  {
+    target: '[data-tour="dosen-rekap"]',
+    title: 'Rekap otomatis pribadi',
+    body: 'Semua angka di sini dihitung otomatis dari data yang sudah Anda isi — IPK rata-rata, organisasi, beasiswa, prestasi, dan mahasiswa yang perlu perhatian.',
+  },
+  {
+    target: 'a[href="/dosen/bimbingan"]',
+    title: 'Daftar Bimbingan',
+    body: 'Klik menu ini untuk melihat seluruh mahasiswa bimbingan Anda, mengisi laporan satu per satu, atau mengimpor data dari Excel.',
+  },
+  {
+    target: '[data-tour="dosen-kirim"]',
+    title: 'Kirim laporan semester',
+    body: 'Setelah semua mahasiswa berstatus Lengkap, kirim laporan ke Wakil Dekan I di sini untuk diverifikasi.',
+  },
+  {
+    target: '[data-tour="dosen-pdf"]',
+    title: 'Unduh PDF laporan',
+    body: 'Unduh laporan resmi (kop surat, tanda tangan, QR verifikasi) kapan saja — bisa dicetak atau diarsipkan.',
+  },
+];
 
 export default function DosenDashboardPage() {
   const { recordList, submitDosenLaporan, dosenRoster } = useData();
@@ -67,7 +96,7 @@ export default function DosenDashboardPage() {
       )}
 
       {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 16 }}>
+      <div data-tour="dosen-kpi" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 16 }}>
         <KpiCard label="Total Bimbingan" value={stats.total} hint="mahasiswa aktif periode ini" color={colors.ink} />
         <KpiCard label="Lengkap" value={stats.lengkap} hint="siap dikirim" color={colors.green} />
         <KpiCard label="Sebagian" value={stats.sebagian} hint="perlu dilengkapi" color={colors.amber} />
@@ -87,47 +116,52 @@ export default function DosenDashboardPage() {
 
       {/* rekap + submit */}
       <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '2fr 1fr', gap: 16, alignItems: 'start' }}>
-        <Card>
-          <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>Rekap otomatis pribadi</span>
-          <span style={{ display: 'block', fontSize: 12, color: colors.faint, marginBottom: 16 }}>
-            Dihitung otomatis dari data yang sudah Anda isi — live
-          </span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-            <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
-            <RekapTile label="Aktif organisasi" value={rekap.organisasi} />
-            <RekapTile label="Penerima beasiswa" value={rekap.beasiswa} />
-            <RekapTile label="Meraih prestasi" value={rekap.prestasi} />
-            <RekapTile label="Cuti / non-aktif" value={rekap.cutiNonaktif} />
-            <RekapTile label="Mahasiswa perlu perhatian" value={rekap.perhatian} valueColor={colors.danger} />
-          </div>
-        </Card>
+        <div data-tour="dosen-rekap">
+          <Card>
+            <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>Rekap otomatis pribadi</span>
+            <span style={{ display: 'block', fontSize: 12, color: colors.faint, marginBottom: 16 }}>
+              Dihitung otomatis dari data yang sudah Anda isi — live
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
+              <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
+              <RekapTile label="Aktif organisasi" value={rekap.organisasi} />
+              <RekapTile label="Penerima beasiswa" value={rekap.beasiswa} />
+              <RekapTile label="Meraih prestasi" value={rekap.prestasi} />
+              <RekapTile label="Cuti / non-aktif" value={rekap.cutiNonaktif} />
+              <RekapTile label="Mahasiswa perlu perhatian" value={rekap.perhatian} valueColor={colors.danger} />
+            </div>
+          </Card>
+        </div>
 
         <Card style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>Kirim laporan semester</span>
-          <span style={{ fontSize: 12.5, color: colors.muted, lineHeight: 1.5 }}>
-            Tombol aktif jika seluruh mahasiswa berstatus lengkap, atau Anda mengonfirmasi record yang sengaja dikosongkan.
-          </span>
-          {!stats.allLengkap && (
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: colors.ink, background: colors.warnBannerBg, border: `1px solid ${colors.warnBannerBorder}`, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={confirmEmpty} onChange={(e) => setConfirmEmpty(e.target.checked)} style={{ marginTop: 2 }} />
-              <span>
-                Saya konfirmasi {stats.notLengkap} record yang belum lengkap sudah sesuai kondisi mahasiswa (sudah diberi catatan).
-              </span>
-            </label>
-          )}
-          <button
-            onClick={submit}
-            disabled={!canSubmit}
-            style={{ padding: 13, borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, color: colors.white, background: canSubmit ? colors.green : colors.disabled, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
-          >
-            {stats.allLengkap ? 'Kirim Laporan' : `Kirim Laporan (${stats.notLengkap} belum lengkap)`}
-          </button>
-          {toast && (
-            <span style={{ fontSize: 12, color: colors.green, fontWeight: 700 }}>
-              ✓ Laporan berhasil dikirim ke Wakil Dekan I.
+          <div data-tour="dosen-kirim" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>Kirim laporan semester</span>
+            <span style={{ fontSize: 12.5, color: colors.muted, lineHeight: 1.5 }}>
+              Tombol aktif jika seluruh mahasiswa berstatus lengkap, atau Anda mengonfirmasi record yang sengaja dikosongkan.
             </span>
-          )}
+            {!stats.allLengkap && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: colors.ink, background: colors.warnBannerBg, border: `1px solid ${colors.warnBannerBorder}`, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={confirmEmpty} onChange={(e) => setConfirmEmpty(e.target.checked)} style={{ marginTop: 2 }} />
+                <span>
+                  Saya konfirmasi {stats.notLengkap} record yang belum lengkap sudah sesuai kondisi mahasiswa (sudah diberi catatan).
+                </span>
+              </label>
+            )}
+            <button
+              onClick={submit}
+              disabled={!canSubmit}
+              style={{ padding: 13, borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, color: colors.white, background: canSubmit ? colors.green : colors.disabled, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
+            >
+              {stats.allLengkap ? 'Kirim Laporan' : `Kirim Laporan (${stats.notLengkap} belum lengkap)`}
+            </button>
+            {toast && (
+              <span style={{ fontSize: 12, color: colors.green, fontWeight: 700 }}>
+                ✓ Laporan berhasil dikirim ke Wakil Dekan I.
+              </span>
+            )}
+          </div>
           <button
+            data-tour="dosen-pdf"
             onClick={unduhPdfSaya}
             disabled={pdfBusy}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
@@ -138,6 +172,8 @@ export default function DosenDashboardPage() {
           {pdfErr && <span style={{ fontSize: 12, color: colors.danger, fontWeight: 600 }}>{pdfErr}</span>}
         </Card>
       </div>
+
+      <FeatureTour steps={DOSEN_TOUR_STEPS} storageKey={`silapa_tour_dosen_${appUser?.uid ?? ''}`} />
     </div>
   );
 }

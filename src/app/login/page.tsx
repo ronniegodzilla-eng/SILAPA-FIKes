@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth, homeRouteForRole } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { colors } from '@/lib/theme';
-import { DEMO_USERS } from '@/lib/seed-data';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,11 +39,6 @@ export default function LoginPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function fillDemo(demoEmail: string) {
-    setEmail(demoEmail);
-    setPassword('silapa123');
   }
 
   function openForgot() {
@@ -133,17 +127,6 @@ export default function LoginPage() {
               Sistem Informasi Pelaporan Pembimbing Akademik — Fakultas Ilmu Kesehatan, Universitas Ibnu Sina.
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32 }}>
-            {[
-              'Rekap laporan dihitung otomatis, bukan diinput manual.',
-              'Riwayat mahasiswa tersedia lintas semester.',
-            ].map((t) => (
-              <div key={t} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors.yellow, marginTop: 7, flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Form panel */}
@@ -203,28 +186,6 @@ export default function LoginPage() {
             >
               {busy ? 'Memproses…' : 'Masuk'}
             </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ flex: 1, height: 1, background: colors.border }} />
-              <span style={{ fontSize: 11, color: colors.faint, fontWeight: 600 }}>DEMO — ISI KREDENSIAL</span>
-              <div style={{ flex: 1, height: 1, background: colors.border }} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {DEMO_USERS.map((u) => (
-                <button
-                  type="button"
-                  key={u.email}
-                  onClick={() => fillDemo(u.email)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.subtleAlt, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: colors.ink }}
-                >
-                  <span>
-                    {u.role === 'dosen_pa' ? 'Dosen PA — ' : u.role === 'admin' ? 'Admin Fakultas — ' : 'Wakil Dekan I — '}
-                    {u.nama}
-                  </span>
-                  <span style={{ color: colors.green }}>→</span>
-                </button>
-              ))}
-            </div>
           </form>
         ) : (
           <form onSubmit={doResetPassword} style={{ padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

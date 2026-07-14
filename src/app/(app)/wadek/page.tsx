@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useData } from '@/lib/data-context';
+import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { fetchMahasiswaRecords } from '@/lib/firestore/data';
 import {
@@ -10,7 +11,36 @@ import {
 } from '@/lib/compute';
 import { colors } from '@/lib/theme';
 import { Card, Icon } from '@/components/ui';
+import { FeatureTour, type TourStep } from '@/components/FeatureTour';
 import type { MahasiswaRecord } from '@/lib/types';
+
+const WADEK_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="wadek-progress"]',
+    title: 'Progres pelaporan 22 dosen',
+    body: 'Pantau berapa dosen yang belum mulai, sudah mengirim, dikembalikan, atau sudah diverifikasi — semua real-time.',
+  },
+  {
+    target: '[data-tour="wadek-ipk"]',
+    title: 'IPK rata-rata per prodi (bisa diklik!)',
+    body: 'Klik salah satu kartu ini untuk melihat rincian IPK rata-rata per dosen PA dalam prodi tersebut.',
+  },
+  {
+    target: '[data-tour="wadek-rekap"]',
+    title: 'Rekap fakultas (bisa diklik!)',
+    body: 'Klik kotak seperti Cuti, Penerima Beasiswa, atau Meraih Prestasi untuk melihat daftar mahasiswanya, dikelompokkan per prodi.',
+  },
+  {
+    target: 'a[href="/wadek/verifikasi"]',
+    title: 'Verifikasi Laporan',
+    body: 'Terima atau kembalikan laporan yang dikirim dosen PA di sini, lengkap dengan catatan revisi.',
+  },
+  {
+    target: 'a[href="/wadek/ekspor"]',
+    title: 'Ekspor & Arsip',
+    body: 'Unduh PDF laporan per dosen dan rekap Excel seluruh fakultas, atau buka arsip periode yang sudah terkunci.',
+  },
+];
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '10px 24px', fontSize: 11, fontWeight: 700,
@@ -33,6 +63,7 @@ type Drilldown = { type: 'ipk'; prodi: string } | { type: 'list'; key: Drilldown
 
 export default function WadekDashboardPage() {
   const { periode, dosenRoster, refreshRekapCache } = useData();
+  const { appUser } = useAuth();
   const width = useViewportWidth();
   const isNarrow = width < 880;
 
@@ -156,7 +187,7 @@ export default function WadekDashboardPage() {
   return (
     <div className="silapa-fade" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* progress KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 16 }}>
+      <div data-tour="wadek-progress" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 16 }}>
         <ProgCard label="Belum Mulai" value={progress.draft} hint={`dari ${dosenRoster.length} dosen PA`} color={colors.muted} />
         <ProgCard label="Sudah Dikirim" value={progress.dikirim} hint="menunggu verifikasi" color={colors.amber} />
         <ProgCard label="Dikembalikan" value={progress.dikembalikan} hint="perlu revisi dosen" color={colors.danger} />
@@ -164,7 +195,7 @@ export default function WadekDashboardPage() {
       </div>
 
       {/* prodi IPK */}
-      <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr 1fr', gap: 16 }}>
+      <div data-tour="wadek-ipk" style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr 1fr', gap: 16 }}>
         {agg.prodiIpk.map((p) => (
           <div
             key={p.prodi}
@@ -183,6 +214,7 @@ export default function WadekDashboardPage() {
 
       {/* rekap fakultas + skripsi */}
       <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1.3fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div data-tour="wadek-rekap">
         <Card>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>
@@ -215,6 +247,7 @@ export default function WadekDashboardPage() {
             <MiniTile label="Semkes ≥ 8" value={agg.masterField.semkes} />
           </div>
         </Card>
+        </div>
 
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
@@ -361,6 +394,8 @@ export default function WadekDashboardPage() {
           dosenNamaByUid={new Map(dosenRoster.map((d) => [d.dosenUid, d.nama]))}
         />
       )}
+
+      <FeatureTour steps={WADEK_TOUR_STEPS} storageKey={`silapa_tour_wadek_${appUser?.uid ?? ''}`} />
     </div>
   );
 }
