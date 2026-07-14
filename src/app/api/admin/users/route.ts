@@ -27,9 +27,14 @@ function normalizeRoles(input: unknown): string[] | null {
  *   seluruh referensi plotting/submissions yang ada langsung tersambung.
  *   `roles` adalah array — satu akun bisa punya lebih dari satu peran.
  *
- * PATCH { uid, aktif?, password?, roles? }
+ * PATCH { uid, aktif?, password?, roles?, nama?, email?, prodiHomebase? }
  *   Menonaktifkan/mengaktifkan akun (Auth disabled + users.aktif), mereset
- *   kata sandi, dan/atau mengubah daftar peran akun.
+ *   kata sandi, mengubah daftar peran akun, dan/atau mengubah profil
+ *   (nama/email/prodi homebase). Perubahan nama/prodi ikut disinkronkan ke
+ *   seluruh dokumen `submissions` milik dosen ini (lintas periode) karena
+ *   pengiriman laporan (§4.5) dan ekspor PDF per-dosen mencocokkan dosen
+ *   lewat field `nama` di sana, bukan lewat uid — tanpa sinkron ini, ganti
+ *   nama di sini akan membuat "Kirim Laporan" dan unduh PDF gagal cocok.
  */
 export async function POST(req: NextRequest) {
   const caller = await requireRole(req, ['admin']);
@@ -106,6 +111,15 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  const namaInput = typeof body?.nama === 'string' ? body.nama.trim() : undefined;
+  const emailInput = typeof body?.email === 'string' ? body.email.trim() : undefined;
+  const prodiInput = body?.prodiHomebase !== undefined ? body.prodiHomebase : undefined;
+  if (namaInput !== undefined && !namaInput) return new Response('Nama tidak boleh kosong.', { status: 400 });
+  if (emailInput !== undefined && !emailInput) return new Response('Email tidak boleh kosong.', { status: 400 });
+  if (password && String(password).length < 6) {
+    return new Response('Kata sandi minimal 6 karakter.', { status: 400 });
+  }
+
   const auth = getAuth(getApps()[0]);
   const db = getAdminDb();
   try {
@@ -114,15 +128,44 @@ export async function PATCH(req: NextRequest) {
       await db.doc(`users/${uid}`).update({ aktif });
     }
     if (password) {
-      if (String(password).length < 6) return new Response('Kata sandi minimal 6 karakter.', { status: 400 });
       await auth.updateUser(uid, { password });
     }
     if (roles) {
       await auth.setCustomUserClaims(uid, { roles });
       await db.doc(`users/${uid}`).update({ roles });
     }
+
+    if (namaInput !== undefined || emailInput !== undefined) {
+      await auth.updateUser(uid, {
+        ...(namaInput !== undefined ? { displayName: namaInput } : {}),
+        ...(emailInput !== undefined ? { email: emailInput } : {}),
+      });
+    }
+    if (namaInput !== undefined || emailInput !== undefined || prodiInput !== undefined) {
+      await db.doc(`users/${uid}`).update({
+        ...(namaInput !== undefined ? { nama: namaInput } : {}),
+        ...(emailInput !== undefined ? { email: emailInput } : {}),
+        ...(prodiInput !== undefined ? { prodiHomebase: prodiInput } : {}),
+      });
+    }
+    // Sinkron ke roster (submissions) lintas periode — lihat catatan JSDoc di atas.
+    if (namaInput !== undefined || prodiInput !== undefined) {
+      const subsSnap = await db.collection('submissions').where('dosenUid', '==', uid).get();
+      await Promise.all(
+        subsSnap.docs.map((d) =>
+          d.ref.update({
+            ...(namaInput !== undefined ? { nama: namaInput } : {}),
+            ...(prodiInput !== undefined ? { prodi: prodiInput } : {}),
+          })
+        )
+      );
+    }
+
     return Response.json({ ok: true });
   } catch (e: any) {
+    const code = e?.errorInfo?.code ?? e?.code ?? '';
+    if (code === 'auth/email-already-exists') return new Response('Email sudah dipakai akun lain.', { status: 409 });
+    if (code === 'auth/invalid-email') return new Response('Format email tidak valid.', { status: 400 });
     return new Response(`Gagal memperbarui akun: ${e?.message ?? e}`, { status: 500 });
   }
 }

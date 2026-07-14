@@ -41,6 +41,14 @@ interface RolesDraft {
   roles: string[];
 }
 
+interface ProfilDraft {
+  uid: string;
+  nama: string;
+  email: string;
+  prodiHomebase: string;
+  isDosen: boolean;
+}
+
 interface ResetDraft {
   uid: string;
   nama: string;
@@ -81,12 +89,13 @@ function guessEmail(nama: string): string {
 
 export default function PenggunaPage() {
   const { appUser } = useAuth();
-  const { dosenRoster } = useData();
+  const { dosenRoster, reload } = useData();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [rolesDraft, setRolesDraft] = useState<RolesDraft | null>(null);
   const [resetDraft, setResetDraft] = useState<ResetDraft | null>(null);
+  const [profilDraft, setProfilDraft] = useState<ProfilDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [err, setErr] = useState('');
@@ -230,6 +239,49 @@ export default function PenggunaPage() {
     }
   }
 
+  function openEditProfil(u: AppUser) {
+    setProfilDraft({
+      uid: u.uid,
+      nama: u.nama,
+      email: u.email,
+      prodiHomebase: u.prodiHomebase ?? 'K3',
+      isDosen: (u.roles ?? []).includes('dosen_pa'),
+    });
+    setErr('');
+  }
+
+  async function simpanProfil() {
+    if (!profilDraft || busy) return;
+    if (!profilDraft.nama.trim()) {
+      setErr('Nama tidak boleh kosong.');
+      return;
+    }
+    if (!profilDraft.email.trim()) {
+      setErr('Email tidak boleh kosong.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      await apiFetch('/api/admin/users', {
+        method: 'PATCH',
+        body: {
+          uid: profilDraft.uid,
+          nama: profilDraft.nama.trim(),
+          email: profilDraft.email.trim(),
+          prodiHomebase: profilDraft.isDosen ? profilDraft.prodiHomebase : null,
+        },
+      });
+      setToast(`✓ Profil ${profilDraft.nama.trim()} diperbarui.`);
+      setProfilDraft(null);
+      await Promise.all([loadUsers(), reload()]);
+    } catch (e: any) {
+      setErr(e?.message ?? 'Gagal memperbarui profil.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const belumPunya = dosenRows.filter((r) => !r.account).length;
 
   return (
@@ -245,7 +297,7 @@ export default function PenggunaPage() {
       </div>
 
       {toast && <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.green }}>{toast}</span>}
-      {err && !draft && !rolesDraft && !resetDraft && (
+      {err && !draft && !rolesDraft && !resetDraft && !profilDraft && (
         <div style={{ background: colors.dangerBg, border: `1px solid ${colors.dangerBorder}`, borderRadius: 12, padding: '11px 16px', fontSize: 12.5, fontWeight: 600, color: colors.danger }}>{err}</div>
       )}
 
@@ -283,6 +335,7 @@ export default function PenggunaPage() {
                 <td style={{ padding: '11px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {r.account ? (
                     <span style={{ display: 'inline-flex', gap: 12 }}>
+                      <span onClick={() => openEditProfil(r.account!)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Edit Profil</span>
                       <span onClick={() => openUbahPeran(r.account!)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Ubah Peran</span>
                       <span onClick={() => openResetPassword(r.account!)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Reset Sandi</span>
                       {r.account.uid !== appUser?.uid && (
@@ -319,6 +372,7 @@ export default function PenggunaPage() {
                 </td>
                 <td style={{ padding: '11px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <span style={{ display: 'inline-flex', gap: 12 }}>
+                    <span onClick={() => openEditProfil(u)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Edit Profil</span>
                     <span onClick={() => openUbahPeran(u)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Ubah Peran</span>
                     <span onClick={() => openResetPassword(u)} style={{ fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Reset Sandi</span>
                     {u.uid !== appUser?.uid && (
@@ -425,6 +479,46 @@ export default function PenggunaPage() {
               <button onClick={() => setResetDraft(null)} style={{ padding: '10px 16px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 13, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Batal</button>
               <button onClick={simpanReset} disabled={busy} style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {busy ? 'Menyimpan…' : 'Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profilDraft && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: colors.surface, borderRadius: 16, padding: '26px 28px', width: 400, maxWidth: '92vw', boxShadow: '0 30px 60px rgba(0,0,0,0.3)' }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: colors.ink, display: 'block', marginBottom: 4 }}>
+              Edit Profil — {profilDraft.nama}
+            </span>
+            <span style={{ fontSize: 12, color: colors.faint, display: 'block', marginBottom: 16, lineHeight: 1.5 }}>
+              Perubahan nama/prodi juga disinkronkan ke roster bimbingan (lintas periode) agar kirim laporan &amp; unduh PDF tetap cocok.
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Nama lengkap + gelar</label>
+                <input value={profilDraft.nama} onChange={(e) => setProfilDraft({ ...profilDraft, nama: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Email institusi</label>
+                <input value={profilDraft.email} onChange={(e) => setProfilDraft({ ...profilDraft, email: e.target.value })} style={inputStyle} />
+              </div>
+              {profilDraft.isDosen && (
+                <div>
+                  <label style={labelStyle}>Prodi Homebase</label>
+                  <select value={profilDraft.prodiHomebase} onChange={(e) => setProfilDraft({ ...profilDraft, prodiHomebase: e.target.value })} style={inputStyle}>
+                    <option value="K3">K3</option>
+                    <option value="KL">KL</option>
+                    <option value="S2KM">S2KM</option>
+                  </select>
+                </div>
+              )}
+            </div>
+            {err && <span style={{ display: 'block', marginTop: 12, fontSize: 12.5, fontWeight: 600, color: colors.danger }}>{err}</span>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setProfilDraft(null)} style={{ padding: '10px 16px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 13, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Batal</button>
+              <button onClick={simpanProfil} disabled={busy} style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {busy ? 'Menyimpan…' : 'Simpan'}
               </button>
             </div>
           </div>
