@@ -123,7 +123,17 @@ export default function DosenDashboardPage() {
               Dihitung otomatis dari data yang sudah Anda isi — live
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-              <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
+              {rekap.ipkPerProdi.length > 0 ? (
+                rekap.ipkPerProdi.map((p) => (
+                  <RekapTile
+                    key={p.prodi}
+                    label={`IPK rata-rata ${p.prodi}`}
+                    value={<span>{p.rata} <span style={{ fontSize: 12, fontWeight: 600, color: colors.faint }}>· n={p.n}</span></span>}
+                  />
+                ))
+              ) : (
+                <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
+              )}
               <RekapTile label="Aktif organisasi" value={rekap.organisasi} />
               <RekapTile label="Penerima beasiswa" value={rekap.beasiswa} />
               <RekapTile label="Meraih prestasi" value={rekap.prestasi} />

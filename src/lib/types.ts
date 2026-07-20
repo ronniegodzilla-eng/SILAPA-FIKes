@@ -46,6 +46,18 @@ export const KONSULTASI_JENIS_PRESET = ['KRS', 'KHS', 'UTS', 'UAS', 'PBL', 'Maga
 export type KonsultasiJenisPreset = (typeof KONSULTASI_JENIS_PRESET)[number];
 export type KonsultasiJenis = KonsultasiJenisPreset | 'lainnya';
 
+/** Preset jenis UKM (unit kegiatan mahasiswa) — dropdown + "Lainnya" ketik bebas. */
+export const UKM_JENIS_PRESET = [
+  'Agama, Seni dan Budaya',
+  'Olahraga',
+  'MAPAIS',
+  'Pers (Sipena)',
+  'Pramuka',
+  'Wirausaha',
+  'English Club',
+] as const;
+export type UkmJenisPreset = (typeof UKM_JENIS_PRESET)[number];
+
 /**
  * Satu entri konsultasi (mis. "KRS — tanda tangan KRS"). "Jumlah konsultasi"
  * TIDAK PERNAH diketik langsung — selalu dihitung dari panjang daftar ini
@@ -98,6 +110,9 @@ export interface Prestasi {
 
 export interface NonAkademik {
   ukm: boolean;
+  /** Jenis UKM yang diikuti (preset UKM_JENIS_PRESET atau teks bebas bila
+   * "Lainnya") — hanya relevan bila ukm === true. Opsional. */
+  ukmJenis?: string | null;
   hima: boolean;
   bem: boolean;
   beasiswa: Beasiswa;

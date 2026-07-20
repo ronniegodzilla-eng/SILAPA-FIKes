@@ -80,7 +80,11 @@ export async function GET(req: NextRequest) {
       const cuti = own.filter((l) => l.status === 'cuti').length;
       const nonaktif = own.filter((l) => l.status === 'non_aktif').length;
       const hima = own.filter((l) => l.nonAkademik?.hima).length;
-      const ukm = own.filter((l) => l.nonAkademik?.ukm).length;
+      const ukmRecs = own.filter((l) => l.nonAkademik?.ukm);
+      const ukm = ukmRecs.length;
+      const ukmJenis = Array.from(
+        new Set(ukmRecs.map((l) => l.nonAkademik?.ukmJenis).filter(Boolean))
+      ).join(', ');
 
       const prestasiRecs = own.filter((l) => l.nonAkademik?.prestasi?.ada);
       const prestasiJenis = Array.from(
@@ -111,7 +115,7 @@ export async function GET(req: NextRequest) {
         ...prodiStats(kl, semK3KL),
         ...prodiStats(s2km, semS2KM),
         cuti, nonaktif,
-        hima, ukm,
+        hima, ukm, ukmJenis,
         prestasiRecs.length, prestasiJenis,
         beasiswaRecs.length, beasiswaJenis,
         sudahPkkmb, sudahToefl, sudahEsq, sudahSemkes,
@@ -128,7 +132,7 @@ export async function GET(req: NextRequest) {
       ...prodiStats(laporan.filter((l) => l.prodi === 'KL'), semK3KL),
       ...prodiStats(laporan.filter((l) => l.prodi === 'S2KM'), semS2KM),
       totCuti, totNonaktif,
-      totHima, totUkm,
+      totHima, totUkm, '',
       totPrestasi, '',
       totBeasiswa, '',
       totSudahPkkmb, totSudahToefl, totSudahEsq, totSudahSemkes,
@@ -177,7 +181,7 @@ export async function GET(req: NextRequest) {
     prodiGroup('PRODI KESEHATAN LINGKUNGAN', semK3KL);
     prodiGroup('PRODI MAGISTER KESEHATAN MASYARAKAT', semS2KM);
     simpleGroup('JUMLAH MAHASISWA', ['CUTI', 'TIDAK AKTIF']);
-    simpleGroup('JUMLAH MAHASISWA DALAM KEIKUTSERTAAN ORGANISASI', ['HIMA', 'UKM']);
+    simpleGroup('JUMLAH MAHASISWA DALAM KEIKUTSERTAAN ORGANISASI', ['HIMA', 'UKM', 'JENIS UKM']);
     simpleGroup('PRESTASI', ['JUMLAH', 'JENIS']);
     simpleGroup('BEASISWA', ['JUMLAH', 'JENIS']);
     simpleGroup('JUMLAH MAHASISWA SUDAH MENGIKUTI', ['PKKMB', 'TOEFL', 'ESQ', 'SEMINAR/WORKSHOP']);
@@ -198,9 +202,10 @@ export async function GET(req: NextRequest) {
     ]);
     sheet1['!merges'] = merges;
     sheet1['!cols'] = row2.map((_, i) => ({ wch: i === 0 ? 32 : 8 }));
-    // Kolom JENIS (prestasi/beasiswa) lebih lebar.
-    const jenisCols = [25, 27];
-    jenisCols.forEach((c) => { if (sheet1['!cols']![c]) sheet1['!cols']![c] = { wch: 18 }; });
+    // Kolom JENIS (UKM/prestasi/beasiswa) lebih lebar. Indeks bergeser +1 pada
+    // prestasi/beasiswa karena kolom "JENIS UKM" baru disisipkan di grup organisasi.
+    const jenisCols = [24, 26, 28];
+    jenisCols.forEach((c) => { if (sheet1['!cols']![c]) sheet1['!cols']![c] = { wch: 20 }; });
 
     // ── Sheet 2: PROPOSAL SKRIPSI — urutan kolom identik file lama ──────
     const tahapLabel: Record<string, string> = {

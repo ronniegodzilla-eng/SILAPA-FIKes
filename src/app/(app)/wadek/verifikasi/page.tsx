@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { fetchMahasiswaRecords } from '@/lib/firestore/data';
-import { computeDosenStats } from '@/lib/compute';
+import { computeDosenStats, computeIpkPerProdi, type ProdiIpk } from '@/lib/compute';
 import { colors, kirimPill, KIRIM_LABEL } from '@/lib/theme';
 import { Pill } from '@/components/ui';
 
@@ -20,6 +20,7 @@ export default function VerifikasiPage() {
   const [filterProdi, setFilterProdi] = useState('semua');
   const [filterStatus, setFilterStatus] = useState('semua');
   const [detailStats, setDetailStats] = useState<ReturnType<typeof computeDosenStats> | null>(null);
+  const [detailIpk, setDetailIpk] = useState<ProdiIpk[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const diverifikasi = dosenRoster.filter((d) => d.statusKirim === 'diverifikasi').length;
@@ -42,12 +43,16 @@ export default function VerifikasiPage() {
   useEffect(() => {
     if (!detail || !periode) {
       setDetailStats(null);
+      setDetailIpk([]);
       return;
     }
     setDetailLoading(true);
     fetchMahasiswaRecords(periode.id, { dosenPaUid: detail.dosenUid })
-      .then((records) => setDetailStats(computeDosenStats(records)))
-      .catch(() => setDetailStats(null))
+      .then((records) => {
+        setDetailStats(computeDosenStats(records));
+        setDetailIpk(computeIpkPerProdi(records));
+      })
+      .catch(() => { setDetailStats(null); setDetailIpk([]); })
       .finally(() => setDetailLoading(false));
   }, [detail, periode]);
 
@@ -161,6 +166,22 @@ export default function VerifikasiPage() {
                 <MiniStat value={detailStats.lengkap} label="Lengkap" color={colors.green} />
                 <MiniStat value={detailStats.sebagian} label="Sebagian" color={colors.amber} />
                 <MiniStat value={detailStats.kosong} label="Kosong" color={colors.danger} />
+              </div>
+            )}
+
+            {detailIpk.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  IPK rata-rata per prodi bimbingan
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(detailIpk.length, 3)},1fr)`, gap: 10 }}>
+                  {detailIpk.map((p) => (
+                    <div key={p.prodi} style={{ background: colors.subtle, borderRadius: 9, padding: 11, textAlign: 'center' }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: colors.ink }}>{p.rata}</div>
+                      <span style={{ fontSize: 10.5, color: colors.muted }}>{p.prodi} · n={p.n}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

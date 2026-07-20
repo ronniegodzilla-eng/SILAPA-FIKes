@@ -80,7 +80,11 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => String(a.npm).localeCompare(String(b.npm)))
       .map((l) => {
         const m = masterByNpm.get(l.npm) ?? {};
-        const org = [l.nonAkademik?.ukm && 'UKM', l.nonAkademik?.hima && 'HIMA', l.nonAkademik?.bem && 'BEM']
+        // UKM tampil dengan jenisnya bila ada, mis. "UKM (Olahraga)".
+        const ukmLabel = l.nonAkademik?.ukm
+          ? `UKM${l.nonAkademik?.ukmJenis ? ` (${l.nonAkademik.ukmJenis})` : ''}`
+          : null;
+        const org = [ukmLabel, l.nonAkademik?.hima && 'HIMA', l.nonAkademik?.bem && 'BEM']
           .filter(Boolean)
           .join(', ');
         const bea = l.nonAkademik?.beasiswa?.ada ? l.nonAkademik.beasiswa.jenis ?? 'Ya' : '—';

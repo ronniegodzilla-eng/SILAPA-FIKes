@@ -8,7 +8,7 @@ import { konsultasiJenisLabel, computeSemesterKe } from '@/lib/compute';
 import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
-import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
+import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
 
 export default function FormLaporanPage() {
   const params = useParams<{ npm: string }>();
@@ -170,10 +170,13 @@ export default function FormLaporanPage() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: 20, marginBottom: 4, flexWrap: 'wrap' }}>
-              <CheckInline label="UKM" checked={rec.nonAkademik.ukm} onChange={(v) => set('nonAkademik.ukm', v)} />
+              <CheckInline label="UKM" checked={rec.nonAkademik.ukm} onChange={(v) => { set('nonAkademik.ukm', v); if (!v) set('nonAkademik.ukmJenis', ''); }} />
               <CheckInline label="HIMA" checked={rec.nonAkademik.hima} onChange={(v) => set('nonAkademik.hima', v)} />
               <CheckInline label="BEM" checked={rec.nonAkademik.bem} onChange={(v) => set('nonAkademik.bem', v)} />
             </div>
+            {rec.nonAkademik.ukm && (
+              <UkmJenisField value={rec.nonAkademik.ukmJenis ?? ''} onChange={(v) => set('nonAkademik.ukmJenis', v)} />
+            )}
             {(rec.nonAkademik.ukm || rec.nonAkademik.hima || rec.nonAkademik.bem) && (
               <BuktiUploadField npm={npm} label="Organisasi" value={rec.nonAkademik.organisasiBukti} onChange={(url) => set('nonAkademik.organisasiBukti', url)} />
             )}
@@ -274,6 +277,49 @@ function CheckInline({ label, checked, onChange }: { label: string; checked: boo
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: colors.ink }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /> {label}
     </label>
+  );
+}
+
+/**
+ * Pemilih jenis UKM — dropdown preset (UKM_JENIS_PRESET) + opsi "Lainnya
+ * (ketik)" yang memunculkan input teks bebas. Nilai akhir (preset atau teks
+ * bebas) disimpan langsung ke nonAkademik.ukmJenis.
+ */
+function UkmJenisField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isPreset = !!value && (UKM_JENIS_PRESET as readonly string[]).includes(value);
+  const [lainnyaMode, setLainnyaMode] = useState(!!value && !isPreset);
+  const selectValue = lainnyaMode ? 'lainnya' : isPreset ? value : '';
+  return (
+    <div style={{ marginTop: 10, maxWidth: 320 }}>
+      <label style={labelStyle}>Jenis UKM</label>
+      <select
+        value={selectValue}
+        onChange={(e) => {
+          if (e.target.value === 'lainnya') {
+            setLainnyaMode(true);
+            onChange('');
+          } else {
+            setLainnyaMode(false);
+            onChange(e.target.value);
+          }
+        }}
+        style={{ ...inputStyle, fontSize: 12.5, padding: '9px 10px' }}
+      >
+        <option value="">Pilih jenis UKM…</option>
+        {UKM_JENIS_PRESET.map((j) => (
+          <option key={j} value={j}>{j}</option>
+        ))}
+        <option value="lainnya">Lainnya (ketik)</option>
+      </select>
+      {lainnyaMode && (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ketik nama UKM"
+          style={{ ...inputStyle, fontSize: 12.5, padding: '9px 10px', marginTop: 8 }}
+        />
+      )}
+    </div>
   );
 }
 

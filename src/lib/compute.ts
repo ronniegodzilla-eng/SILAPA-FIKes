@@ -89,8 +89,40 @@ export function computeDosenStats(list: MahasiswaRecord[]): DosenStats {
   return { total, lengkap, sebagian, kosong, percent, allLengkap: lengkap === total, notLengkap: total - lengkap };
 }
 
+export interface ProdiIpk {
+  prodi: string;
+  rata: string;
+  n: number;
+}
+
+/**
+ * IPK rata-rata per prodi dari satu kumpulan record (mis. bimbingan seorang
+ * dosen PA). Hanya prodi yang punya ≥1 mahasiswa AKTIF yang dikembalikan; rata
+ * = mean IP mahasiswa aktif yang IP-nya sudah terisi (atau "—" bila belum ada).
+ * Dipakai di dashboard dosen dan modal verifikasi wadek (PRD §6) — "pembimbing
+ * melihat rata-rata IP per prodi dari anak bimbingannya".
+ */
+export function computeIpkPerProdi(list: MahasiswaRecord[]): ProdiIpk[] {
+  const order = ['K3', 'KL', 'S2KM'];
+  const activeProdi = new Set<string>();
+  list.forEach((m) => { if (m.status === 'aktif') activeProdi.add(m.prodi); });
+  return Array.from(activeProdi)
+    .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+    .map((prodi) => {
+      const withIp = list.filter(
+        (m) => m.prodi === prodi && m.status === 'aktif' && m.akademik.ipKhs != null
+      );
+      const mean = withIp.length
+        ? withIp.reduce((s, m) => s + (m.akademik.ipKhs as number), 0) / withIp.length
+        : 0;
+      return { prodi, rata: withIp.length ? mean.toFixed(2) : '—', n: withIp.length };
+    });
+}
+
 export interface DosenRekap {
   ipkRataStr: string;
+  /** Rincian IPK rata-rata per prodi bimbingan (dosen sering lintas prodi). */
+  ipkPerProdi: ProdiIpk[];
   organisasi: number;
   beasiswa: number;
   prestasi: number;
@@ -106,6 +138,7 @@ export function computeDosenRekap(list: MahasiswaRecord[]): DosenRekap {
     : 0;
   return {
     ipkRataStr: ipkRata ? ipkRata.toFixed(2) : '—',
+    ipkPerProdi: computeIpkPerProdi(list),
     organisasi: list.filter((m) => m.nonAkademik.ukm || m.nonAkademik.hima || m.nonAkademik.bem).length,
     beasiswa: list.filter((m) => m.nonAkademik.beasiswa.ada).length,
     prestasi: list.filter((m) => m.nonAkademik.prestasi.ada).length,
