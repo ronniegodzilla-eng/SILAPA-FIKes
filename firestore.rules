@@ -97,5 +97,17 @@ service cloud.firestore {
     match /rekapCache/{periodeId} {
       allow read, write: if isAdmin() || isWadek();
     }
+
+    // ── tokenIsiData (§ isi-data mandiri mahasiswa tanpa akun) ──
+    // Satu token per dosen, dibagikan sebagai link publik (WhatsApp) yang
+    // mahasiswa bimbingannya buka TANPA login. Karena tidak ada akun/uid di
+    // sisi mahasiswa untuk diverifikasi rules, validasi token + pemetaan
+    // npm→dosen dilakukan SELURUHNYA di server (Admin SDK, lihat
+    // /api/public/isi-data) yang otomatis melewati rules ini. Deny-all di
+    // sini murni defence-in-depth agar koleksi ini tidak pernah bisa
+    // dibaca/ditulis langsung dari client SDK oleh siapa pun.
+    match /tokenIsiData/{token} {
+      allow read, write: if false;
+    }
   }
 }

@@ -82,6 +82,10 @@ export interface AppUser {
   prodiHomebase?: Prodi | null;
   aktif: boolean;
   jumlahBimbingan?: number; // convenience mirror for plotting/distribusi
+  /** Token aktif untuk halaman publik "Isi Data Mandiri" (§ isi-data mahasiswa
+   * tanpa akun) — mirror dari dokumen tokenIsiData/{token} miliknya, dikelola
+   * lewat /api/dosen/token. Undefined = belum pernah membuat link. */
+  activeTokenIsiData?: string;
 }
 
 export interface Akademik {
@@ -90,6 +94,21 @@ export interface Akademik {
   /** Jumlah konsultasi = konsultasi.length — dihitung, bukan diketik. */
   konsultasi: KonsultasiEntry[];
   mkNilaiDE: string[];
+  /** Bukti KRS/KHS resmi dari SIAKAD — WAJIB dilampirkan setiap kali sksKrs/
+   * ipKhs berubah lewat halaman isi-data mandiri mahasiswa (§ token publik),
+   * supaya dosen bisa cross-check angka yang diisi mandiri. */
+  krsBukti?: string;
+  khsBukti?: string;
+}
+
+/** tokenIsiData/{token} — satu token mewakili SELURUH bimbingan satu dosen PA
+ * (dibagikan sebagai satu link di grup WhatsApp), bukan per mahasiswa. Dokumen
+ * ini hanya disentuh via Admin SDK (server) — lihat firestore.rules deny-all. */
+export interface TokenIsiData {
+  dosenUid: string;
+  periodeId: string;
+  active: boolean;
+  createdAt: unknown;
 }
 
 export interface Beasiswa {

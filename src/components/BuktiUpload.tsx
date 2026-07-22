@@ -7,18 +7,28 @@ import { uploadBuktiFile } from '@/lib/upload-bukti';
 /**
  * Unggah bukti (opsional — bisa dinaikkan jadi wajib nanti bila pimpinan
  * memutuskan demikian). Backend: Google Apps Script + Drive (lihat
- * apps-script/README.md), dipanggil lewat /api/upload-bukti.
+ * apps-script/README.md).
+ *
+ * `uploadFn` dapat dioverride supaya komponen ini juga dipakai di halaman
+ * publik "Isi Data Mandiri" (token, tanpa login) yang memanggil
+ * /api/public/upload-bukti alih-alih /api/upload-bukti — default-nya tetap
+ * jalur terautentikasi lama.
  */
 export function BuktiUploadField({
   npm,
   label,
   value,
   onChange,
+  uploadFn,
+  required,
 }: {
   npm: string;
   label: string;
   value?: string;
   onChange: (url: string) => void;
+  uploadFn?: (file: File) => Promise<string>;
+  /** Tampilkan label sebagai "wajib" (mis. KRS/KHS saat angkanya berubah). */
+  required?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -31,7 +41,7 @@ export function BuktiUploadField({
     setBusy(true);
     setErr('');
     try {
-      const url = await uploadBuktiFile(npm, label, file);
+      const url = await (uploadFn ? uploadFn(file) : uploadBuktiFile(npm, label, file));
       onChange(url);
     } catch (er: any) {
       setErr(er?.message ?? 'Gagal mengunggah bukti.');
@@ -54,9 +64,9 @@ export function BuktiUploadField({
       )}
       <label
         htmlFor={inputId}
-        style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, cursor: busy ? 'wait' : 'pointer', textDecoration: 'underline' }}
+        style={{ fontSize: 11.5, fontWeight: 700, color: required && !value ? colors.danger : colors.muted, cursor: busy ? 'wait' : 'pointer', textDecoration: 'underline' }}
       >
-        {busy ? 'Mengunggah…' : value ? 'Ganti bukti' : 'Unggah bukti (opsional)'}
+        {busy ? 'Mengunggah…' : value ? 'Ganti bukti' : required ? 'Unggah bukti (wajib)' : 'Unggah bukti (opsional)'}
       </label>
       <input
         id={inputId}

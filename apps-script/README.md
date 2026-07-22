@@ -7,6 +7,15 @@ paket Firebase berbayar (Blaze). Ini **satu-satunya langkah manual** yang
 harus dilakukan sendiri oleh pemilik akun Google institusi — Claude tidak
 bisa login ke akun Google Anda untuk melakukannya.
 
+**Dipakai oleh DUA endpoint Next.js**, satu Apps Script yang sama: rute
+terautentikasi `/api/upload-bukti` (dosen/admin login) DAN rute publik
+`/api/public/upload-bukti` (§ isi-data mandiri mahasiswa via token, tanpa
+login — dipakai untuk bukti KRS/KHS). `upload-bukti.gs` sendiri sudah generik
+terhadap `label` (disanitasi ke alnum/dash/underscore lalu jadi bagian nama
+file) — **tidak perlu diubah/redeploy ulang** untuk mendukung label baru
+seperti `KRS`/`KHS`, keduanya otomatis bekerja seperti label lain
+(PKKMB/TOEFL/dst).
+
 ## Langkah deploy
 
 1. Buka [script.google.com](https://script.google.com) dengan akun Google

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { computeDosenStats, computeDosenRekap } from '@/lib/compute';
-import { downloadWithAuth } from '@/lib/download';
+import { downloadWithAuth, apiFetch } from '@/lib/download';
 import { colors } from '@/lib/theme';
 import { Card, Icon } from '@/components/ui';
 import { FeatureTour, type TourStep } from '@/components/FeatureTour';
@@ -183,8 +183,101 @@ export default function DosenDashboardPage() {
         </Card>
       </div>
 
+      <TokenIsiDataCard />
+
       <FeatureTour steps={DOSEN_TOUR_STEPS} storageKey={`silapa_tour_dosen_${appUser?.uid ?? ''}`} />
     </div>
+  );
+}
+
+/**
+ * Link "Isi Data Mandiri" (§ token per dosen): satu link mewakili SELURUH
+ * bimbingan dosen ini, dibagikan sebagai satu link di grup WhatsApp —
+ * mahasiswa mengisi datanya sendiri tanpa akun. Membuat link baru langsung
+ * mematikan link lama.
+ */
+function TokenIsiDataCard() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    apiFetch<{ token: string | null; url: string | null }>('/api/dosen/token')
+      .then((r) => setUrl(r.url))
+      .catch(() => setUrl(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function buatLink() {
+    if (busy) return;
+    setBusy(true);
+    setErr('');
+    setCopied(false);
+    try {
+      const r = await apiFetch<{ token: string; url: string }>('/api/dosen/token', { method: 'POST' });
+      setUrl(r.url);
+    } catch (e: any) {
+      setErr(e?.message ?? 'Gagal membuat link.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function salin() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setErr('Gagal menyalin — salin manual dari kotak di atas.');
+    }
+  }
+
+  return (
+    <Card>
+      <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 4 }}>
+        Link Isi Data Mandiri Mahasiswa
+      </span>
+      <span style={{ fontSize: 12.5, color: colors.muted, lineHeight: 1.5, display: 'block', marginBottom: 16 }}>
+        Satu link ini mewakili SELURUH mahasiswa bimbingan Anda — bagikan ke grup WhatsApp bimbingan Anda.
+        Mahasiswa membuka link, memilih namanya sendiri, dan mengisi datanya tanpa perlu akun. Nama, NPM, prodi,
+        angkatan, dan kelas tetap terkunci (tidak bisa diubah lewat sini).
+      </span>
+
+      {loading ? (
+        <span style={{ fontSize: 12.5, color: colors.faint }}>Memuat…</span>
+      ) : (
+        <>
+          {url && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <input
+                readOnly
+                value={url}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+                style={{ flex: 1, minWidth: 220, padding: '10px 12px', borderRadius: 9, border: `1px solid ${colors.border}`, fontSize: 12.5, color: colors.ink, background: colors.subtle }}
+              />
+              <button
+                onClick={salin}
+                style={{ padding: '10px 16px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12.5, fontWeight: 700, color: colors.ink, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                {copied ? '✓ Tersalin' : 'Salin Link'}
+              </button>
+            </div>
+          )}
+          <button
+            onClick={buatLink}
+            disabled={busy}
+            style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}
+          >
+            {busy ? 'Membuat…' : url ? 'Buat Link Baru (link lama langsung mati)' : 'Buat Link'}
+          </button>
+          {err && <span style={{ display: 'block', marginTop: 10, fontSize: 12, color: colors.danger, fontWeight: 600 }}>{err}</span>}
+        </>
+      )}
+    </Card>
   );
 }
 
