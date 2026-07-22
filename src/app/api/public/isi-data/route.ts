@@ -188,6 +188,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── PKKMB/TOEFL/ESQ: bukti WAJIB setiap kali tercentang (true) — nilai
+  // efektif = yang dikirim di patch kalau ada, kalau tidak pakai yang sudah
+  // tersimpan (jadi resubmit tanpa menyentuh checkbox tidak minta upload ulang).
+  const checks: [string, string, string][] = [
+    ['pkkmb', 'pkkmbBukti', 'PKKMB'],
+    ['toefl', 'toeflBukti', 'TOEFL'],
+    ['esq', 'esqBukti', 'ESQ'],
+  ];
+  for (const [field, buktiField, label] of checks) {
+    const effectiveChecked = field in patch ? patch[field] : master[field];
+    const effectiveBukti = buktiField in patch ? patch[buktiField] : master[buktiField];
+    if (effectiveChecked && !effectiveBukti) {
+      return new Response(`Upload bukti ${label} wajib dilampirkan karena ${label} dicentang.`, { status: 400 });
+    }
+  }
+
   // ── Pisahkan ke dokumen master vs laporan (sama seperti split di client) ──
   const masterPatch: Record<string, unknown> = {};
   const laporanPatch: Record<string, unknown> = {};

@@ -152,6 +152,18 @@ export default function IsiDataMandiriPage() {
       setSaveErr('Upload bukti KHS wajib dilampirkan karena IP berubah.');
       return;
     }
+    if (form.pkkmb && !form.pkkmbBukti) {
+      setSaveErr('Upload bukti PKKMB wajib dilampirkan karena PKKMB dicentang.');
+      return;
+    }
+    if (form.toefl && !form.toeflBukti) {
+      setSaveErr('Upload bukti TOEFL wajib dilampirkan karena TOEFL dicentang.');
+      return;
+    }
+    if (form.esq && !form.esqBukti) {
+      setSaveErr('Upload bukti ESQ wajib dilampirkan karena ESQ dicentang.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -257,19 +269,19 @@ export default function IsiDataMandiriPage() {
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: colors.ink }}>
                     <input type="checkbox" checked={form.pkkmb} onChange={(e) => set('pkkmb', e.target.checked)} /> PKKMB
                   </label>
-                  <BuktiUploadField npm={selectedNpm} label="PKKMB" value={form.pkkmbBukti} onChange={(url) => set('pkkmbBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'PKKMB', f)} />
+                  <BuktiUploadField npm={selectedNpm} label="PKKMB" value={form.pkkmbBukti} onChange={(url) => set('pkkmbBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'PKKMB', f)} required={form.pkkmb} />
                 </div>
                 <div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: colors.ink }}>
                     <input type="checkbox" checked={form.toefl} onChange={(e) => set('toefl', e.target.checked)} /> TOEFL
                   </label>
-                  <BuktiUploadField npm={selectedNpm} label="TOEFL" value={form.toeflBukti} onChange={(url) => set('toeflBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'TOEFL', f)} />
+                  <BuktiUploadField npm={selectedNpm} label="TOEFL" value={form.toeflBukti} onChange={(url) => set('toeflBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'TOEFL', f)} required={form.toefl} />
                 </div>
                 <div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: colors.ink }}>
                     <input type="checkbox" checked={form.esq} onChange={(e) => set('esq', e.target.checked)} /> ESQ
                   </label>
-                  <BuktiUploadField npm={selectedNpm} label="ESQ" value={form.esqBukti} onChange={(url) => set('esqBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'ESQ', f)} />
+                  <BuktiUploadField npm={selectedNpm} label="ESQ" value={form.esqBukti} onChange={(url) => set('esqBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'ESQ', f)} required={form.esq} />
                 </div>
                 <div>
                   <label style={labelStyle}>Semkes diikuti (target 8)</label>

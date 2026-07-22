@@ -116,15 +116,15 @@ export default function FormLaporanPage() {
           </div>
           <div>
             <CheckField label="PKKMB" checked={rec.pkkmb} onChange={(v) => set('pkkmb', v)} />
-            <BuktiUploadField npm={npm} label="PKKMB" value={rec.pkkmbBukti} onChange={(url) => set('pkkmbBukti', url)} />
+            <BuktiUploadField npm={npm} label="PKKMB" value={rec.pkkmbBukti} onChange={(url) => set('pkkmbBukti', url)} required={rec.pkkmb} />
           </div>
           <div>
             <CheckField label="TOEFL" checked={rec.toefl} onChange={(v) => set('toefl', v)} />
-            <BuktiUploadField npm={npm} label="TOEFL" value={rec.toeflBukti} onChange={(url) => set('toeflBukti', url)} />
+            <BuktiUploadField npm={npm} label="TOEFL" value={rec.toeflBukti} onChange={(url) => set('toeflBukti', url)} required={rec.toefl} />
           </div>
           <div>
             <CheckField label="ESQ" checked={rec.esq} onChange={(v) => set('esq', v)} />
-            <BuktiUploadField npm={npm} label="ESQ" value={rec.esqBukti} onChange={(url) => set('esqBukti', url)} />
+            <BuktiUploadField npm={npm} label="ESQ" value={rec.esqBukti} onChange={(url) => set('esqBukti', url)} required={rec.esq} />
           </div>
           <div>
             <label style={labelStyle}>Semkes diikuti (target 8)</label>
