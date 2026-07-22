@@ -8,9 +8,9 @@ import { computeDosenStats } from '@/lib/compute';
 import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
-import { Icon, Pill } from '@/components/ui';
+import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import type { ImportLengkapRow } from '@/lib/firestore/data';
-import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry } from '@/lib/types';
+import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
@@ -36,6 +36,14 @@ interface ImportRow {
   payload?: ImportLengkapRow;
 }
 
+interface TambahDraft {
+  npm: string;
+  nama: string;
+  prodi: string;
+  kelas: string;
+  angkatan: number;
+}
+
 /** '' → undefined (tidak diubah); ya/tidak → boolean; lainnya → error string. */
 function parseBool(v: string): boolean | undefined | 'ERR' {
   const s = v.trim().toLowerCase();
@@ -57,12 +65,18 @@ function parseNum(v: string, opts: { int?: boolean; min: number; max: number }):
 export default function DaftarBimbinganPage() {
   const router = useRouter();
   const { appUser } = useAuth();
-  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload } = useData();
+  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('semua');
   const [filterProdi, setFilterProdi] = useState('semua');
   const [quickEdit, setQuickEdit] = useState(false);
+
+  // Tambah Mahasiswa (dosen menambah bimbingannya sendiri)
+  const [tambahOpen, setTambahOpen] = useState(false);
+  const [tambahDraft, setTambahDraft] = useState<TambahDraft>({ npm: '', nama: '', prodi: 'K3', kelas: '-', angkatan: new Date().getFullYear() });
+  const [tambahErr, setTambahErr] = useState('');
+  const [tambahBusy, setTambahBusy] = useState(false);
 
   // Kirim laporan
   const stats = computeDosenStats(recordList);
@@ -104,6 +118,60 @@ export default function DaftarBimbinganPage() {
       setKirimToast('✓ Laporan berhasil dikirim ke Wakil Dekan I.');
     } finally {
       setKirimBusy(false);
+    }
+  }
+
+  function openTambah() {
+    setTambahDraft({ npm: '', nama: '', prodi: prodiOptions[0] ?? 'K3', kelas: '-', angkatan: new Date().getFullYear() });
+    setTambahErr('');
+    setTambahOpen(true);
+  }
+
+  function closeTambah() {
+    setTambahOpen(false);
+    setTambahErr('');
+  }
+
+  async function saveTambah() {
+    if (tambahBusy || !appUser) return;
+    const npm = tambahDraft.npm.trim();
+    const nama = tambahDraft.nama.trim();
+    if (!NPM_RE.test(npm)) {
+      setTambahErr('NPM harus berupa angka, minimal 8 digit.');
+      return;
+    }
+    if (!nama) {
+      setTambahErr('Nama wajib diisi.');
+      return;
+    }
+    if (!Number.isInteger(tambahDraft.angkatan) || tambahDraft.angkatan < 2000 || tambahDraft.angkatan > 2100) {
+      setTambahErr('Angkatan tidak valid.');
+      return;
+    }
+    setTambahBusy(true);
+    setTambahErr('');
+    try {
+      if (await checkNpmExists(npm)) {
+        setTambahErr('NPM sudah terdaftar di sistem.');
+        return;
+      }
+      const rec: MahasiswaRecord = {
+        npm, nama, prodi: tambahDraft.prodi as MahasiswaRecord['prodi'],
+        angkatan: tambahDraft.angkatan, kelas: tambahDraft.kelas as MahasiswaRecord['kelas'],
+        dosenPaUid: appUser.uid, semesterKe: 2, status: 'aktif',
+        pkkmb: false, toefl: false, esq: false, semkesCount: 0,
+        akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
+        nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
+        skripsi: { tahap: 'belum', kendala: '' },
+        permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [],
+      };
+      await addMahasiswa(rec);
+      await reload();
+      setTambahOpen(false);
+    } catch (e: any) {
+      setTambahErr(e?.message || 'Gagal menyimpan — coba lagi.');
+    } finally {
+      setTambahBusy(false);
     }
   }
 
@@ -296,6 +364,17 @@ export default function DaftarBimbinganPage() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div
+            onClick={openTambah}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+              cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              border: `1px solid ${colors.border}`, color: colors.ink, background: colors.surface,
+            }}
+          >
+            <Icon path="M12 5v14 M5 12h14" size={15} width={2} />
+            Tambah Mahasiswa
+          </div>
           <div
             onClick={() => setImportOpen(true)}
             style={{
@@ -511,6 +590,58 @@ export default function DaftarBimbinganPage() {
                 style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: importValid.length ? colors.green : colors.disabled, color: colors.white, fontSize: 13, fontWeight: 700, cursor: importValid.length ? 'pointer' : 'not-allowed' }}
               >
                 {importBusy ? 'Memproses…' : `Isi ${importValid.length} Baris ke Bimbingan`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tambahOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: colors.surface, borderRadius: 16, padding: '26px 28px', width: 420, maxWidth: '90vw', boxShadow: '0 30px 60px rgba(0,0,0,0.3)' }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: colors.ink, display: 'block', marginBottom: 4 }}>Tambah Mahasiswa Baru</span>
+            <span style={{ fontSize: 12.5, color: colors.muted, display: 'block', marginBottom: 16, lineHeight: 1.5 }}>
+              Mahasiswa ini otomatis menjadi bimbingan Anda. NPM, nama, prodi, angkatan, dan kelas tidak bisa diubah lagi setelah tersimpan lewat sini.
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>NPM</label>
+                <input value={tambahDraft.npm} onChange={(e) => setTambahDraft({ ...tambahDraft, npm: e.target.value })} placeholder="Mis. 261013241001" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Nama</label>
+                <input value={tambahDraft.nama} onChange={(e) => setTambahDraft({ ...tambahDraft, nama: e.target.value })} style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>Prodi</label>
+                  <select value={tambahDraft.prodi} onChange={(e) => setTambahDraft({ ...tambahDraft, prodi: e.target.value })} style={inputStyle}>
+                    <option value="K3">K3</option>
+                    <option value="KL">KL</option>
+                    <option value="S2KM">S2KM</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Kelas</label>
+                  <select value={tambahDraft.kelas} onChange={(e) => setTambahDraft({ ...tambahDraft, kelas: e.target.value })} style={inputStyle}>
+                    <option value="-">— (belum tercatat)</option>
+                    <option value="REG A">REG A</option>
+                    <option value="REG B">REG B</option>
+                    <option value="REG C">REG C</option>
+                    <option value="REG D">REG D</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Angkatan</label>
+                <input type="number" value={tambahDraft.angkatan} onChange={(e) => setTambahDraft({ ...tambahDraft, angkatan: Number(e.target.value) })} style={inputStyle} />
+              </div>
+            </div>
+            {tambahErr && <span style={{ display: 'block', fontSize: 12.5, color: colors.danger, fontWeight: 600, marginTop: 12 }}>{tambahErr}</span>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+              <button onClick={closeTambah} style={{ padding: '10px 16px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 13, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>Batal</button>
+              <button onClick={saveTambah} disabled={tambahBusy} style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: tambahBusy ? 'wait' : 'pointer' }}>
+                {tambahBusy ? 'Menyimpan…' : 'Simpan'}
               </button>
             </div>
           </div>

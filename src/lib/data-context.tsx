@@ -35,6 +35,7 @@ interface DataContextValue {
 
   updateField: (npm: string, path: string, value: unknown) => void;
   addMahasiswa: (rec: MahasiswaRecord) => Promise<void>;
+  checkNpmExists: (npm: string) => Promise<boolean>;
   editMahasiswaMaster: (
     npm: string,
     fields: { nama: string; prodi: string; kelas: string; angkatan: number }
@@ -180,6 +181,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     [periode]
   );
+
+  const checkNpmExists = useCallback((npm: string) => data.npmExists(npm), []);
 
   const editMahasiswaMaster = useCallback(
     async (
@@ -365,6 +368,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         saveStatus,
         updateField,
         addMahasiswa,
+        checkNpmExists,
         editMahasiswaMaster,
         toggleNonaktif,
         setPeriodeStatus,

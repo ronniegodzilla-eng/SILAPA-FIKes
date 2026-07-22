@@ -253,6 +253,13 @@ export async function createMahasiswaMaster(rec: MahasiswaRecord, periodeId: str
   await batch.commit();
 }
 
+/** NPM sudah terdaftar? Baca langsung `mahasiswa/{npm}` (read terbuka untuk semua yang login). */
+export async function npmExists(npm: string): Promise<boolean> {
+  const db = getDbOrThrow();
+  const snap = await getDoc(doc(db, 'mahasiswa', npm));
+  return snap.exists();
+}
+
 export async function saveMahasiswaMasterEdit(
   npm: string,
   fields: { nama: string; prodi: string; kelas: string; angkatan: number }
