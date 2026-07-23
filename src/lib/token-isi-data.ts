@@ -57,6 +57,15 @@ export async function validateToken(token: string | null | undefined): Promise<T
       message: 'Link ini untuk periode sebelumnya dan sudah tidak berlaku. Minta dosen PA Anda membuat link baru.',
     };
   }
+  // Periode ini sudah dikunci Wakil Dekan I (setelah verifikasi) — data
+  // tidak boleh berubah lagi dari jalur mana pun, termasuk isi-data mandiri.
+  if (periode.status === 'dikunci') {
+    return {
+      ok: false,
+      status: 423,
+      message: 'Periode ini sudah dikunci oleh Wakil Dekan I — data tidak bisa diubah lagi. Hubungi dosen PA Anda bila ada koreksi.',
+    };
+  }
 
   const dosenSnap = await db.doc(`users/${data.dosenUid}`).get();
   const dosenNama = dosenSnap.exists ? ((dosenSnap.data() as any).nama ?? '—') : '—';

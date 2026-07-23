@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useData } from '@/lib/data-context';
@@ -67,6 +67,14 @@ export default function DaftarBimbinganPage() {
   const { appUser } = useAuth();
   const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Muat ulang setiap kali halaman ini dibuka — supaya perubahan yang baru
+  // diisi mahasiswa lewat link isi-data mandiri langsung terlihat, tanpa
+  // dosen perlu tahu harus refresh manual.
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [query, setQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('semua');
   const [filterProdi, setFilterProdi] = useState('semua');
