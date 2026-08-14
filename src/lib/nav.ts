@@ -51,6 +51,9 @@ export const PAGE_TITLES: Record<string, [string, string]> = {
   '/wadek': ['Dashboard Fakultas', 'Visibilitas real-time progres pelaporan 22 dosen PA'],
   '/wadek/verifikasi': ['Verifikasi Laporan', 'Terima atau kembalikan kiriman laporan dosen PA'],
   '/wadek/ekspor': ['Ekspor & Arsip', 'Unduh PDF per dosen, rekap Excel, dan arsip periode terkunci'],
+  // Terbuka untuk semua peran — diakses lewat blok pengguna di bawah sidebar,
+  // bukan lewat NAV_CONFIG yang dipisah per peran.
+  '/profil': ['Profil Saya', 'Ubah data diri, foto, dan kata sandi akun Anda'],
 };
 
 export function isNavActive(item: NavItem, pathname: string): boolean {

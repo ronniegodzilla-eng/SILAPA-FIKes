@@ -171,10 +171,26 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.14)', paddingTop: 14, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px' }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: colors.yellow, color: '#073B21', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                {initials}
-              </div>
+            <Link
+              href="/profil"
+              onClick={() => setMobileNavOpen(false)}
+              title="Buka profil saya"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 9, textDecoration: 'none', background: pathname === '/profil' ? 'rgba(255,255,255,0.12)' : 'transparent' }}
+            >
+              {appUser?.fotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={appUser.fotoUrl}
+                  alt=""
+                  width={34}
+                  height={34}
+                  style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+              ) : (
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: colors.yellow, color: '#073B21', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
+                  {initials}
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {appUser?.nama}
@@ -183,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {appUser?.email}
                 </span>
               </div>
-            </div>
+            </Link>
             <div
               onClick={doLogout}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 9, color: 'rgba(255,255,255,0.75)', cursor: 'pointer', fontSize: 13.5, fontWeight: 600 }}

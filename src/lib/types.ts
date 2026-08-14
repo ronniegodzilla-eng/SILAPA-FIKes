@@ -80,6 +80,9 @@ export interface AppUser {
   email: string;
   roles: Role[];
   prodiHomebase?: Prodi | null;
+  /** Foto profil — URL thumbnail Google Drive (dibangun dari fileId yang
+   * dikembalikan Apps Script), diunggah lewat /api/profil/foto. */
+  fotoUrl?: string | null;
   aktif: boolean;
   jumlahBimbingan?: number; // convenience mirror for plotting/distribusi
   /** Token aktif untuk halaman publik "Isi Data Mandiri" (§ isi-data mahasiswa

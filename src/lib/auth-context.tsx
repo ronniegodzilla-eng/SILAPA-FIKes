@@ -29,6 +29,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  /** Baca ulang users/{uid} — dipanggil setelah pengguna menyunting profilnya. */
+  refreshAppUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -129,6 +131,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }
 
+  async function refreshAppUser() {
+    const uid = auth?.currentUser?.uid;
+    if (!uid || !db) return;
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) setAppUser({ uid, ...(snap.data() as Omit<AppUser, 'uid'>) });
+  }
+
   async function logout() {
     if (auth) await signOut(auth);
     await syncSessionCookie(null);
@@ -151,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ firebaseUser, appUser, activeRole, setActiveRole, loading, configured: isFirebaseConfigured, login, logout, resetPassword }}
+      value={{ firebaseUser, appUser, activeRole, setActiveRole, loading, configured: isFirebaseConfigured, login, logout, resetPassword, refreshAppUser }}
     >
       {children}
     </AuthContext.Provider>
