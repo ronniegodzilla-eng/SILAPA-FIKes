@@ -7,7 +7,10 @@ import { fetchAllUsers } from '@/lib/firestore/data';
 import { apiFetch } from '@/lib/download';
 import { colors } from '@/lib/theme';
 import { Card, Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
+import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
 import type { AppUser } from '@/lib/types';
+
+type SortKey = 'nama' | 'prodi' | 'email' | 'peran' | 'statusAkun';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
@@ -126,6 +129,27 @@ export default function PenggunaPage() {
   }));
   const rosterUids = new Set(dosenRoster.map((d) => d.dosenUid));
   const lainnya = users.filter((u) => !rosterUids.has(u.uid) && !dosenRows.some((r) => r.account?.uid === u.uid));
+
+  // Tabel Dosen PA: cari + urut + halaman (tabel "Admin & Wakil Dekan" sengaja
+  // dibiarkan polos — isinya hanya 2–4 baris).
+  const sort = useTableSort<SortKey>();
+  const [dosenQ, setDosenQ] = useState('');
+  const dosenNeedle = dosenQ.trim().toLowerCase();
+  const dosenFiltered = dosenRows.filter(
+    (r) =>
+      !dosenNeedle ||
+      r.nama.toLowerCase().includes(dosenNeedle) ||
+      (r.account?.email ?? '').toLowerCase().includes(dosenNeedle)
+  );
+  const dosenSorted = sort.sortRows(dosenFiltered, (r, key) => {
+    switch (key) {
+      case 'email': return r.account?.email ?? '';
+      case 'peran': return r.account ? rolesLabel(r.account.roles) : '';
+      case 'statusAkun': return r.account ? (r.account.aktif === false ? 'Nonaktif' : 'Aktif') : 'Belum ada akun';
+      default: return r[key];
+    }
+  });
+  const dosenPage = usePagination(dosenSorted, undefined, sort.sortSig);
 
   function openBuatAkun(row: { dosenUid: string; nama: string; prodi: string }) {
     setDraft({
@@ -302,22 +326,26 @@ export default function PenggunaPage() {
       )}
 
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflowX: 'auto' }}>
-        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${colors.rowBorder}` }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink }}>Dosen PA ({dosenRoster.length})</span>
+        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${colors.rowBorder}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, flex: 1 }}>Dosen PA ({dosenRoster.length})</span>
+          <TableSearch value={dosenQ} onChange={setDosenQ} placeholder="Cari nama atau email..." />
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: colors.subtle }}>
-              <th style={TH}>Nama</th>
-              <th style={TH}>Prodi</th>
-              <th style={TH}>Email</th>
-              <th style={TH}>Peran</th>
-              <th style={TH}>Status Akun</th>
+              <SortableTh label="Nama" sortKey="nama" sort={sort} style={TH} />
+              <SortableTh label="Prodi" sortKey="prodi" sort={sort} style={TH} />
+              <SortableTh label="Email" sortKey="email" sort={sort} style={TH} />
+              <SortableTh label="Peran" sortKey="peran" sort={sort} style={TH} />
+              <SortableTh label="Status Akun" sortKey="statusAkun" sort={sort} style={TH} />
               <th style={{ ...TH, textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {dosenRows.map((r) => (
+            {dosenPage.total === 0 && (
+              <tr><td colSpan={6} style={{ padding: '14px 16px', fontSize: 12.5, color: colors.faint }}>Tidak ada dosen yang cocok dengan pencarian.</td></tr>
+            )}
+            {dosenPage.pageRows.map((r) => (
               <tr key={r.dosenUid} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
                 <td style={{ padding: '11px 16px', fontSize: 13.5, fontWeight: 600, color: colors.ink }}>{r.nama}</td>
                 <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{r.prodi}</td>
@@ -352,6 +380,9 @@ export default function PenggunaPage() {
             ))}
           </tbody>
         </table>
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${colors.rowBorder}` }}>
+          <PaginationBar p={dosenPage} itemLabel="dosen PA" />
+        </div>
       </div>
 
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflowX: 'auto' }}>

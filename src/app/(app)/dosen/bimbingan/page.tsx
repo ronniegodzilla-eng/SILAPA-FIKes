@@ -9,6 +9,7 @@ import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
+import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 import type { ImportLengkapRow } from '@/lib/firestore/data';
 import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
@@ -35,6 +36,9 @@ interface ImportRow {
   msg: string;
   payload?: ImportLengkapRow;
 }
+
+/** Kolom yang bisa diurutkan pada tabel daftar bimbingan. */
+type SortKey = 'npm' | 'nama' | 'prodi' | 'semesterKe' | 'kelas' | 'sks' | 'ip' | 'konsul' | 'status' | 'statusPengisian';
 
 interface TambahDraft {
   npm: string;
@@ -100,17 +104,36 @@ export default function DaftarBimbinganPage() {
   const [importToast, setImportToast] = useState('');
   const [importErr, setImportErr] = useState('');
 
+  const sort = useTableSort<SortKey>();
   const q = query.trim().toLowerCase();
   const prodiOptions = Array.from(new Set(recordList.map((m) => m.prodi))).sort();
-  const rows = recordList.filter((m) => {
+  const filtered = recordList.filter((m) => {
     const matchesQ = !q || m.nama.toLowerCase().includes(q) || m.npm.includes(q);
     const matchesStatus = filterStatus === 'semua' || m.status === filterStatus;
     const matchesProdi = filterProdi === 'semua' || m.prodi === filterProdi;
     return matchesQ && matchesStatus && matchesProdi;
   });
+  const sorted = sort.sortRows(filtered, (m, key) => {
+    switch (key) {
+      case 'sks': return m.akademik.sksKrs;
+      case 'ip': return m.akademik.ipKhs;
+      case 'konsul': return m.akademik.konsultasi.length;
+      default: return m[key as keyof typeof m] as never;
+    }
+  });
+  const p = usePagination(sorted, undefined, sort.sortSig);
+  const rows = p.pageRows;
 
   const importValid = importRows.filter((r) => r.valid);
   const importFailed = importRows.filter((r) => !r.valid);
+
+  // Pratinjau import — diurut & dipaginasi seperti pratinjau import admin.
+  const importSort = useTableSort<'npm' | 'nama' | 'sks' | 'ip' | 'konsul' | 'valid'>();
+  const importSorted = importSort.sortRows(
+    importRows.map((r, i) => ({ r, i })),
+    ({ r }, key) => r[key]
+  );
+  const importPage = usePagination(importSorted, 10, importSort.sortSig);
 
   async function kirimLaporan() {
     if (kirimBusy) return;
@@ -446,8 +469,11 @@ export default function DaftarBimbinganPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: colors.subtle }}>
-              {['NPM', 'Nama', 'Prodi', 'Smt', 'Kelas', 'SKS', 'IP', 'Konsul', 'Status', 'Kelengkapan'].map((h) => (
-                <th key={h} style={TH}>{h}</th>
+              {([
+                ['NPM', 'npm'], ['Nama', 'nama'], ['Prodi', 'prodi'], ['Smt', 'semesterKe'], ['Kelas', 'kelas'],
+                ['SKS', 'sks'], ['IP', 'ip'], ['Konsul', 'konsul'], ['Status', 'status'], ['Kelengkapan', 'statusPengisian'],
+              ] as [string, SortKey][]).map(([label, key]) => (
+                <SortableTh key={key} label={label} sortKey={key} sort={sort} style={TH} />
               ))}
             </tr>
           </thead>
@@ -520,6 +546,12 @@ export default function DaftarBimbinganPage() {
         </table>
       </div>
 
+      <PaginationBar
+        p={p}
+        itemLabel="mahasiswa bimbingan"
+        note={filtered.length !== recordList.length ? `(hasil saring dari ${recordList.length} bimbingan Anda)` : undefined}
+      />
+
       <input
         ref={fileRef}
         type="file"
@@ -563,13 +595,22 @@ export default function DaftarBimbinganPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: colors.subtle }}>
-                        {['NPM', 'Nama', 'SKS', 'IP', 'Konsul', 'Validasi'].map((h) => (
-                          <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, fontWeight: 700, color: colors.muted, textTransform: 'uppercase' }}>{h}</th>
+                        {([
+                          ['NPM', 'npm'], ['Nama', 'nama'], ['SKS', 'sks'],
+                          ['IP', 'ip'], ['Konsul', 'konsul'], ['Validasi', 'valid'],
+                        ] as [string, 'npm' | 'nama' | 'sks' | 'ip' | 'konsul' | 'valid'][]).map(([label, key]) => (
+                          <SortableTh
+                            key={key}
+                            label={label}
+                            sortKey={key}
+                            sort={importSort}
+                            style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, fontWeight: 700, color: colors.muted, textTransform: 'uppercase' }}
+                          />
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {importRows.map((r, i) => (
+                      {importPage.pageRows.map(({ r, i }) => (
                         <tr key={i} style={{ borderTop: `1px solid ${colors.rowBorder}`, background: r.valid ? colors.surface : colors.dangerBg }}>
                           <td style={{ padding: '7px 10px', fontSize: 12, color: colors.ink, fontVariantNumeric: 'tabular-nums' }}>{r.npm}</td>
                           <td style={{ padding: '7px 10px', fontSize: 12, color: colors.ink }}>{r.nama}</td>
@@ -581,6 +622,9 @@ export default function DaftarBimbinganPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <PaginationBar p={importPage} itemLabel="baris" />
                 </div>
                 {importFailed.length > 0 && (
                   <a href={failedRowsCsv(importFailed)} download="baris_gagal_import.csv" style={{ fontSize: 12, fontWeight: 700, color: colors.green, textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>

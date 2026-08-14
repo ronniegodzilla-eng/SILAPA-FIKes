@@ -6,11 +6,14 @@ import { fetchMahasiswaRecords } from '@/lib/firestore/data';
 import { computeDosenStats, computeIpkPerProdi, type ProdiIpk } from '@/lib/compute';
 import { colors, kirimPill, KIRIM_LABEL } from '@/lib/theme';
 import { Pill } from '@/components/ui';
+import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
   color: colors.muted, textTransform: 'uppercase',
 };
+
+type SortKey = 'nama' | 'prodi' | 'jumlah' | 'statusKirim';
 
 export default function VerifikasiPage() {
   const { periode, dosenRoster, setPeriodeStatus, verifTerima, verifKembalikan } = useData();
@@ -26,13 +29,17 @@ export default function VerifikasiPage() {
   const diverifikasi = dosenRoster.filter((d) => d.statusKirim === 'diverifikasi').length;
   const allVerified = dosenRoster.length > 0 && diverifikasi === dosenRoster.length;
 
+  const sort = useTableSort<SortKey>();
   const q = search.trim().toLowerCase();
-  const rows = dosenRoster.filter((d) => {
+  const filtered = dosenRoster.filter((d) => {
     const matchesQ = !q || d.nama.toLowerCase().includes(q);
     const matchesProdi = filterProdi === 'semua' || d.prodi === filterProdi;
     const matchesStatus = filterStatus === 'semua' || d.statusKirim === filterStatus;
     return matchesQ && matchesProdi && matchesStatus;
   });
+  const sorted = sort.sortRows(filtered, (d, key) => d[key]);
+  const p = usePagination(sorted, undefined, sort.sortSig);
+  const rows = p.pageRows;
   const prodiOptions = Array.from(new Set(dosenRoster.map((d) => d.prodi))).sort();
 
   const detail = openDosen ? dosenRoster.find((d) => d.nama === openDosen) : null;
@@ -118,10 +125,10 @@ export default function VerifikasiPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: colors.subtle }}>
-              <th style={TH}>Dosen PA</th>
-              <th style={TH}>Prodi</th>
-              <th style={TH}>Jumlah Bimbingan</th>
-              <th style={TH}>Status Kiriman</th>
+              <SortableTh label="Dosen PA" sortKey="nama" sort={sort} style={TH} />
+              <SortableTh label="Prodi" sortKey="prodi" sort={sort} style={TH} />
+              <SortableTh label="Jumlah Bimbingan" sortKey="jumlah" sort={sort} style={TH} />
+              <SortableTh label="Status Kiriman" sortKey="statusKirim" sort={sort} style={TH} />
               <th style={{ ...TH, textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
@@ -148,6 +155,12 @@ export default function VerifikasiPage() {
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        p={p}
+        itemLabel="dosen PA"
+        note={filtered.length !== dosenRoster.length ? `(hasil saring dari ${dosenRoster.length} dosen)` : undefined}
+      />
 
       {detail && detailPill && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>

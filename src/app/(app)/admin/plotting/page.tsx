@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { colors } from '@/lib/theme';
 import { Card } from '@/components/ui';
+import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
+
+type SortKey = 'nama' | 'prodi' | 'jumlah';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
@@ -48,6 +51,13 @@ export default function PlottingPage() {
   const canMove = !!selectedNpm && !!targetUid;
   const canBulk = bulkFiltered && bulkMatches.length > 0 && !!bulkTargetUid;
   const total = dosenRoster.reduce((sum, d) => sum + d.jumlah, 0);
+
+  // Tabel ringkasan beban bimbingan per dosen.
+  const sort = useTableSort<SortKey>();
+  const [rosterQ, setRosterQ] = useState('');
+  const rosterNeedle = rosterQ.trim().toLowerCase();
+  const rosterFiltered = dosenRoster.filter((d) => !rosterNeedle || d.nama.toLowerCase().includes(rosterNeedle));
+  const rosterPage = usePagination(sort.sortRows(rosterFiltered, (d, key) => d[key]), undefined, sort.sortSig);
 
   async function moveSingle() {
     if (!canMove || busy) return;
@@ -151,16 +161,23 @@ export default function PlottingPage() {
       </Card>
 
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${colors.rowBorder}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, flex: 1 }}>Beban bimbingan per dosen PA</span>
+          <TableSearch value={rosterQ} onChange={setRosterQ} placeholder="Cari nama dosen..." />
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: colors.subtle }}>
-              <th style={TH}>Dosen PA</th>
-              <th style={TH}>Prodi Homebase</th>
-              <th style={TH}>Jumlah Bimbingan</th>
+              <SortableTh label="Dosen PA" sortKey="nama" sort={sort} style={TH} />
+              <SortableTh label="Prodi Homebase" sortKey="prodi" sort={sort} style={TH} />
+              <SortableTh label="Jumlah Bimbingan" sortKey="jumlah" sort={sort} style={TH} />
             </tr>
           </thead>
           <tbody>
-            {dosenRoster.map((d) => (
+            {rosterPage.total === 0 && (
+              <tr><td colSpan={3} style={{ padding: '14px 16px', fontSize: 12.5, color: colors.faint }}>Tidak ada dosen yang cocok dengan pencarian.</td></tr>
+            )}
+            {rosterPage.pageRows.map((d) => (
               <tr key={d.nama} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
                 <td style={{ padding: '11px 16px', fontSize: 13.5, fontWeight: 600, color: colors.ink }}>{d.nama}</td>
                 <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{d.prodi}</td>
@@ -170,12 +187,16 @@ export default function PlottingPage() {
           </tbody>
           <tfoot>
             <tr style={{ borderTop: `2px solid ${colors.border}`, background: colors.subtle }}>
-              <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 800, color: colors.ink }}>Total</td>
+              {/* Total selalu seluruh fakultas, bukan hasil saring/halaman aktif. */}
+              <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 800, color: colors.ink }}>Total seluruh dosen</td>
               <td />
               <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 800, color: colors.ink }}>{total}</td>
             </tr>
           </tfoot>
         </table>
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${colors.rowBorder}` }}>
+          <PaginationBar p={rosterPage} itemLabel="dosen PA" />
+        </div>
       </div>
     </div>
   );

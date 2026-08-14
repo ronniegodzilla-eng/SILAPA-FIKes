@@ -4,7 +4,11 @@ import { useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { colors, statusPill, STATUS_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
+import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 import type { MahasiswaRecord } from '@/lib/types';
+
+/** Kolom yang bisa diurutkan pada tabel master mahasiswa. */
+type SortKey = 'npm' | 'nama' | 'prodi' | 'angkatan' | 'kelas' | 'dosen' | 'status';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
@@ -28,15 +32,24 @@ export default function MasterMahasiswaPage() {
   const [editNpm, setEditNpm] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ npm: '', nama: '', prodi: 'K3', kelas: 'REG A', angkatan: 2026 });
 
+  const sort = useTableSort<SortKey>();
   const q = search.trim().toLowerCase();
   const filtered = recordList.filter((m) => {
-    const matchesQ = !q || m.nama.toLowerCase().includes(q) || m.npm.includes(q);
+    const matchesQ =
+      !q ||
+      m.nama.toLowerCase().includes(q) ||
+      m.npm.includes(q) ||
+      (namaByUid.get(m.dosenPaUid ?? '') ?? '').toLowerCase().includes(q);
     const matchesProdi = filterProdi === 'semua' || m.prodi === filterProdi;
     return matchesQ && matchesProdi;
   });
-  // Data riil ±1.500 baris — batasi render agar tabel tetap ringan.
-  const MAX_ROWS = 200;
-  const rows = filtered.slice(0, MAX_ROWS);
+  const sorted = sort.sortRows(filtered, (m, key) =>
+    key === 'dosen' ? namaByUid.get(m.dosenPaUid ?? '') ?? '' : (m[key as keyof MahasiswaRecord] as never)
+  );
+  // Data riil ±1.500 baris — dipaginasi (dulu dipotong keras di 200 baris,
+  // sisanya tidak bisa dilihat sama sekali).
+  const p = usePagination(sorted, undefined, sort.sortSig);
+  const rows = p.pageRows;
 
   function openAdd() {
     const newNpm = '26' + String(1000000000 + Math.floor(Math.random() * 89999999)).slice(0, 10);
@@ -78,7 +91,7 @@ export default function MasterMahasiswaPage() {
     <div className="silapa-fade" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 240, flexWrap: 'wrap' }}>
-          <input placeholder="Cari nama atau NPM..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: 1, maxWidth: 320, padding: '10px 14px', borderRadius: 10, border: `1px solid ${colors.border}`, fontSize: 13.5, outline: 'none' }} />
+          <input placeholder="Cari nama, NPM, atau dosen PA..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: 1, maxWidth: 320, padding: '10px 14px', borderRadius: 10, border: `1px solid ${colors.border}`, fontSize: 13.5, outline: 'none' }} />
           <select value={filterProdi} onChange={(e) => setFilterProdi(e.target.value)} style={{ padding: '10px 12px', borderRadius: 10, border: `1px solid ${colors.border}`, fontSize: 13, color: colors.ink, background: colors.surface }}>
             <option value="semua">Semua prodi</option>
             <option value="K3">K3</option>
@@ -96,7 +109,12 @@ export default function MasterMahasiswaPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: colors.subtle }}>
-              {['NPM', 'Nama', 'Prodi', 'Angkatan', 'Kelas', 'Dosen PA', 'Status'].map((h) => <th key={h} style={TH}>{h}</th>)}
+              {([
+                ['NPM', 'npm'], ['Nama', 'nama'], ['Prodi', 'prodi'], ['Angkatan', 'angkatan'],
+                ['Kelas', 'kelas'], ['Dosen PA', 'dosen'], ['Status', 'status'],
+              ] as [string, SortKey][]).map(([label, key]) => (
+                <SortableTh key={key} label={label} sortKey={key} sort={sort} style={TH} />
+              ))}
               <th style={{ ...TH, textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
@@ -126,10 +144,11 @@ export default function MasterMahasiswaPage() {
           </tbody>
         </table>
       </div>
-      <span style={{ fontSize: 12, color: colors.faint }}>
-        Menampilkan {rows.length} dari {filtered.length} hasil ({recordList.length} mahasiswa terdaftar di fakultas).
-        {filtered.length > MAX_ROWS && ' Gunakan pencarian/filter untuk mempersempit.'}
-      </span>
+      <PaginationBar
+        p={p}
+        itemLabel="mahasiswa"
+        note={filtered.length !== recordList.length ? `(hasil saring dari ${recordList.length} mahasiswa terdaftar di fakultas)` : undefined}
+      />
 
       {mode && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>

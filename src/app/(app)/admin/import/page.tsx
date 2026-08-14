@@ -7,7 +7,10 @@ import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateMahasiswa, downloadTemplateNilai } from '@/lib/xlsx-template';
 import { colors } from '@/lib/theme';
 import { Icon, Card } from '@/components/ui';
+import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
 import type { DosenRosterEntry, MahasiswaRecord } from '@/lib/types';
+
+type SortKey = 'npm' | 'nama' | 'c3' | 'c4' | 'c5' | 'valid';
 
 type Mode = 'nilai' | 'mahasiswa';
 type Stage = 'idle' | 'preview' | 'done';
@@ -58,6 +61,25 @@ export default function ImportPage() {
 
   const failed = rows.filter((r) => !r.valid);
   const valid = rows.filter((r) => r.valid);
+
+  // Pratinjau bisa memuat ribuan baris (import satu angkatan penuh) — dicari,
+  // diurut (mis. "Validasi" untuk mengumpulkan baris gagal), dan dipaginasi.
+  // Indeks asli disimpan sebagai key React karena NPM bisa duplikat: justru
+  // duplikat itulah salah satu kasus gagal validasi yang ingin ditampilkan.
+  const sort = useTableSort<SortKey>();
+  const [previewQ, setPreviewQ] = useState('');
+  const previewNeedle = previewQ.trim().toLowerCase();
+  const previewFiltered = rows
+    .map((r, i) => ({ r, i }))
+    .filter(
+      ({ r }) =>
+        !previewNeedle ||
+        r.npm.toLowerCase().includes(previewNeedle) ||
+        r.nama.toLowerCase().includes(previewNeedle) ||
+        r.msg.toLowerCase().includes(previewNeedle)
+    );
+  const previewSorted = sort.sortRows(previewFiltered, ({ r }, key) => (key === 'c5' ? r.c5 ?? '' : r[key]));
+  const previewPage = usePagination(previewSorted, undefined, sort.sortSig);
 
   async function onFile(file: File) {
     setParseErr('');
@@ -179,21 +201,29 @@ export default function ImportPage() {
               <span style={{ fontSize: 12, fontWeight: 700, color: colors.green, background: colors.greenSoftBg, padding: '5px 10px', borderRadius: 999 }}>Semua baris valid</span>
             )}
           </div>
+          <div style={{ display: 'flex', marginBottom: 10 }}>
+            <TableSearch value={previewQ} onChange={setPreviewQ} placeholder="Cari NPM, nama, atau pesan validasi..." width={9999} />
+          </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
               <thead>
                 <tr style={{ background: colors.subtle }}>
-                  {[
-                    'NPM (mentah)', 'Nama',
-                    mode === 'nilai' ? 'SKS' : 'Prodi',
-                    mode === 'nilai' ? 'IP' : 'Kelas · Angkatan',
-                    ...(mode === 'mahasiswa' ? ['Dosen PA'] : []),
-                    'Validasi',
-                  ].map((h) => <th key={h} style={TH}>{h}</th>)}
+                  {([
+                    ['NPM (mentah)', 'npm'], ['Nama', 'nama'],
+                    [mode === 'nilai' ? 'SKS' : 'Prodi', 'c3'],
+                    [mode === 'nilai' ? 'IP' : 'Kelas · Angkatan', 'c4'],
+                    ...(mode === 'mahasiswa' ? ([['Dosen PA', 'c5']] as [string, SortKey][]) : []),
+                    ['Validasi', 'valid'],
+                  ] as [string, SortKey][]).map(([label, key]) => (
+                    <SortableTh key={key} label={label} sortKey={key} sort={sort} style={TH} />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {previewPage.total === 0 && (
+                  <tr><td colSpan={mode === 'mahasiswa' ? 6 : 5} style={{ padding: '12px 14px', fontSize: 12.5, color: colors.faint }}>Tidak ada baris yang cocok dengan pencarian.</td></tr>
+                )}
+                {previewPage.pageRows.map(({ r, i }) => (
                   <tr key={i} style={{ borderTop: `1px solid ${colors.rowBorder}`, background: r.valid ? colors.surface : colors.dangerBg }}>
                     <td style={{ padding: '9px 14px', fontSize: 12.5, color: colors.ink, fontVariantNumeric: 'tabular-nums' }}>{r.npm}</td>
                     <td style={{ padding: '9px 14px', fontSize: 12.5, color: colors.ink }}>{r.nama}</td>
@@ -207,6 +237,9 @@ export default function ImportPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <PaginationBar p={previewPage} itemLabel="baris" />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             {failed.length > 0 ? (
