@@ -89,7 +89,7 @@ export default function VerifikasiPage() {
           disabled={!allVerified}
           style={{ padding: '10px 18px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, color: colors.white, background: allVerified ? colors.danger : '#B7C2B1', cursor: allVerified ? 'pointer' : 'not-allowed' }}
         >
-          Kunci Periode
+          Tutup Periode
         </button>
       </div>
 

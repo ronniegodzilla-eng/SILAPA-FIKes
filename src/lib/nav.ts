@@ -46,7 +46,7 @@ export const PAGE_TITLES: Record<string, [string, string]> = {
   '/admin/mahasiswa': ['Master Mahasiswa', 'Kelola data induk mahasiswa fakultas'],
   '/admin/import': ['Import Data', 'Import massal mahasiswa baru dan nilai KRS/KHS'],
   '/admin/plotting': ['Plotting Dosen PA', 'Distribusi dan pemindahan bimbingan mahasiswa'],
-  '/admin/periode': ['Kelola Periode', 'Buka, tutup, dan kunci periode pelaporan'],
+  '/admin/periode': ['Kelola Periode', 'Buka dan tutup periode pelaporan'],
   '/admin/pengguna': ['Kelola Pengguna', 'Buat dan kelola akun dosen PA, admin, dan Wakil Dekan'],
   '/wadek': ['Dashboard Fakultas', 'Visibilitas real-time progres pelaporan 22 dosen PA'],
   '/wadek/verifikasi': ['Verifikasi Laporan', 'Terima atau kembalikan kiriman laporan dosen PA'],

@@ -104,7 +104,6 @@ export function periodePill(status: string): { color: string; bg: string } {
   const map: Record<string, { color: string; bg: string }> = {
     draft: { color: '#5C6B60', bg: '#EFF2EA' },
     dibuka: { color: '#0B6E3C', bg: '#E5F3EA' },
-    verifikasi: { color: '#8A5A0B', bg: '#FBF1DC' },
     dikunci: { color: '#B0453A', bg: '#FBEAE8' },
   };
   return map[status] || { color: '#5C6B60', bg: '#EFF2EA' };

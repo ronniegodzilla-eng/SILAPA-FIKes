@@ -148,10 +148,12 @@ export async function fetchPeriodeHistory(): Promise<PeriodeHistoryEntry[]> {
 
 export async function updatePeriodeStatus(periodeId: string, status: PeriodeStatus) {
   const db = getDbOrThrow();
-  // Jejak audit AMI (PRD §4.3): catat waktu buka & tutup pengisian.
+  // Jejak audit AMI (PRD §4.3): catat waktu buka & tutup periode. Waktu tutup
+  // distempel saat 'dikunci' — sejak tahap 'verifikasi' dihapus, itulah satu-
+  // satunya titik periode benar-benar ditutup.
   const stamps: Record<string, unknown> = {};
   if (status === 'dibuka') stamps.tanggalBuka = serverTimestamp();
-  if (status === 'verifikasi') stamps.tanggalTutup = serverTimestamp();
+  if (status === 'dikunci') stamps.tanggalTutup = serverTimestamp();
   await updateDoc(doc(db, 'periode', periodeId), { status, ...stamps });
 }
 

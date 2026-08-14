@@ -10,7 +10,12 @@ export type Kelas = 'REG A' | 'REG B' | 'REG C' | 'REG D' | '-';
 export type StatusMahasiswa = 'aktif' | 'cuti' | 'non_aktif' | 'lulus' | 'keluar';
 export type StatusLaporan = 'aktif' | 'cuti' | 'non_aktif' | 'lulus';
 export type StatusPengisian = 'kosong' | 'sebagian' | 'lengkap';
-export type PeriodeStatus = 'draft' | 'dibuka' | 'verifikasi' | 'dikunci';
+/** Siklus periode sengaja hanya buka↔tutup (draft → dibuka → dikunci).
+ * Tahap 'verifikasi' yang dulu ada dihapus karena membingungkan: namanya
+ * "tutup pengisian" tapi tidak menutup apa pun — hanya 'dikunci' yang
+ * benar-benar membekukan data di Security Rules. Verifikasi per-dosen oleh
+ * Wakil Dekan I tetap ada, tapi itu status `submissions`, bukan periode. */
+export type PeriodeStatus = 'draft' | 'dibuka' | 'dikunci';
 export type StatusKirim = 'draft' | 'dikirim' | 'dikembalikan' | 'diverifikasi';
 export type Semester = 'ganjil' | 'genap';
 

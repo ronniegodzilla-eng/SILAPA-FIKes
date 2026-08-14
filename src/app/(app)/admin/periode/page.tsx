@@ -7,9 +7,8 @@ import { Card, Pill } from '@/components/ui';
 
 const STATUS_DESC: Record<string, string> = {
   draft: 'Periode belum dibuka. Buka periode untuk men-generate record laporan seluruh mahasiswa aktif sesuai plotting saat ini.',
-  dibuka: 'Periode sedang berjalan. Dosen PA dapat mengisi laporan bimbingan untuk seluruh mahasiswa aktif.',
-  verifikasi: 'Pengisian ditutup. Wakil Dekan I sedang memverifikasi kiriman tiap dosen PA.',
-  dikunci: 'Periode terkunci. Seluruh data bersifat read-only dan menjadi arsip bukti mutu (AMI/akreditasi).',
+  dibuka: 'Periode sedang berjalan. Dosen PA mengisi laporan bimbingan, dan Wakil Dekan I dapat memverifikasi kiriman yang sudah masuk.',
+  dikunci: 'Periode ditutup. Seluruh data bersifat read-only dan menjadi arsip bukti mutu (AMI/akreditasi).',
 };
 
 /**
@@ -98,23 +97,15 @@ export default function PeriodePage() {
             </button>
           )}
           {periode.status === 'dibuka' && (
-            <button onClick={() => setPeriodeStatus('verifikasi')} style={btn(colors.amber)}>Tutup Pengisian → Mulai Verifikasi</button>
-          )}
-          {periode.status === 'verifikasi' && (
-            <>
-              <button onClick={() => setPeriodeStatus('dikunci')} style={btn(colors.danger)}>Kunci Periode</button>
-              <button onClick={() => setPeriodeStatus('dibuka')} style={btnOutline()}>Buka Kembali Pengisian</button>
-            </>
+            <button onClick={() => setPeriodeStatus('dikunci')} style={btn(colors.danger)}>Tutup Periode</button>
           )}
           {periode.status === 'dikunci' && (
-            <button onClick={() => setPeriodeStatus('verifikasi')} style={btnOutline()}>
-              Buka Kunci → Kembali ke Verifikasi
-            </button>
+            <button onClick={() => setPeriodeStatus('dibuka')} style={btnOutline()}>Buka Kembali Periode</button>
           )}
         </div>
         {periode.status === 'dikunci' && (
           <span style={{ display: 'block', marginTop: 10, fontSize: 11.5, color: colors.faint, lineHeight: 1.5 }}>
-            Buka kunci mengembalikan periode ke tahap verifikasi sehingga data dapat dikoreksi (atas persetujuan Wakil Dekan I), lalu dikunci kembali.
+            Membuka kembali periode membuat data dapat dikoreksi lagi (atas persetujuan Wakil Dekan I), lalu ditutup kembali setelah selesai.
           </span>
         )}
         {genToast && <span style={{ display: 'block', marginTop: 12, fontSize: 12.5, fontWeight: 700, color: colors.green }}>✓ {genToast}</span>}
