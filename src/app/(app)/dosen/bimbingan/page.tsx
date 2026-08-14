@@ -190,7 +190,7 @@ export default function DaftarBimbinganPage() {
         npm, nama, prodi: tambahDraft.prodi as MahasiswaRecord['prodi'],
         angkatan: tambahDraft.angkatan, kelas: tambahDraft.kelas as MahasiswaRecord['kelas'],
         dosenPaUid: appUser.uid, semesterKe: 2, status: 'aktif',
-        pkkmb: false, toefl: false, esq: false, semkesCount: 0,
+        pkkmb: false, toefl: false, esq: false, semkes: [],
         akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
         nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
         skripsi: { tahap: 'belum', kendala: '' },
@@ -264,11 +264,6 @@ export default function DaftarBimbinganPage() {
               else if (b !== undefined) (payload as any)[key] = b;
             }
             // numbers
-            if (!msg) {
-              const semkes = parseNum(r.semkes_count ?? '', { int: true, min: 0, max: 99 });
-              if (semkes === 'ERR') msg = 'semkes_count tidak valid';
-              else if (semkes !== undefined) payload.semkesCount = semkes;
-            }
             if (!msg) {
               const sks = parseNum(r.sks_krs ?? r.sks ?? '', { int: true, min: 0, max: 200 });
               if (sks === 'ERR') msg = 'sks_krs tidak valid (0–200)';

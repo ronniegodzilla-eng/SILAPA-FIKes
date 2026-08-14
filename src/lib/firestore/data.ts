@@ -12,9 +12,11 @@ import {
 } from 'firebase/firestore';
 import { getDbOrThrow } from '../firebase';
 import { computeSemesterKe, computeStatusPengisian, computeWadekAggregates, type WadekAggregates } from '../compute';
+import { SEMKES_MAX } from '../types';
 import type {
   DosenRosterEntry,
   MahasiswaRecord,
+  SemkesEntry,
   Periode,
   PeriodeHistoryEntry,
   StatusKirim,
@@ -31,7 +33,7 @@ const MASTER_FIELDS = new Set([
   'pkkmb',
   'toefl',
   'esq',
-  'semkesCount',
+  'semkes',
   'ipHistory',
   'pkkmbBukti',
   'toeflBukti',
@@ -54,7 +56,7 @@ function splitRecord(rec: MahasiswaRecord) {
     pkkmb: rec.pkkmb,
     toefl: rec.toefl,
     esq: rec.esq,
-    semkesCount: rec.semkesCount,
+    semkes: rec.semkes,
     ipHistory: rec.ipHistory,
     pkkmbBukti: rec.pkkmbBukti ?? null,
     toeflBukti: rec.toeflBukti ?? null,
@@ -74,9 +76,26 @@ function splitRecord(rec: MahasiswaRecord) {
     permasalahan: rec.permasalahan,
     rekomendasi: rec.rekomendasi,
     rekomendasiDO: rec.rekomendasiDO ?? false,
+    dikunciMandiri: rec.dikunciMandiri ?? false,
     statusPengisian: rec.statusPengisian,
   };
   return { master, laporan };
+}
+
+/**
+ * Daftar semkes dari dokumen master, dengan jembatan ke bentuk lama.
+ * Sebelumnya semkes hanya disimpan sebagai angka `semkesCount` tanpa judul/
+ * bukti. Record lama dikonversi jadi entri berjudul kosong supaya jumlahnya
+ * tidak hilang — dosen tinggal melengkapi judulnya.
+ */
+function readSemkes(master: any): SemkesEntry[] {
+  if (Array.isArray(master?.semkes)) return master.semkes;
+  const legacy = Number(master?.semkesCount ?? 0);
+  if (!Number.isFinite(legacy) || legacy <= 0) return [];
+  return Array.from({ length: Math.min(legacy, SEMKES_MAX) }, (_, i) => ({
+    id: `legacy-${i}`,
+    judul: '',
+  }));
 }
 
 /** Compose master + laporan docs back into the UI's MahasiswaRecord. */
@@ -91,7 +110,7 @@ function mergeRecord(master: any, laporan: any): MahasiswaRecord {
     pkkmb: master.pkkmb,
     toefl: master.toefl,
     esq: master.esq,
-    semkesCount: master.semkesCount,
+    semkes: readSemkes(master),
     ipHistory: master.ipHistory ?? [],
     pkkmbBukti: master.pkkmbBukti ?? undefined,
     toeflBukti: master.toeflBukti ?? undefined,
@@ -113,6 +132,7 @@ function mergeRecord(master: any, laporan: any): MahasiswaRecord {
     permasalahan: laporan?.permasalahan ?? '',
     rekomendasi: laporan?.rekomendasi ?? '',
     rekomendasiDO: laporan?.rekomendasiDO ?? false,
+    dikunciMandiri: laporan?.dikunciMandiri ?? false,
     statusPengisian: laporan?.statusPengisian ?? 'kosong',
   };
 }
@@ -454,7 +474,8 @@ export interface ImportLengkapRow {
   pkkmb?: boolean;
   toefl?: boolean;
   esq?: boolean;
-  semkesCount?: number;
+  // Semkes sengaja TIDAK ada di import massal: tiap entri kini butuh judul +
+  // bukti sendiri, tidak bisa diwakili satu angka. Diisi lewat form.
 }
 
 /**
@@ -526,12 +547,11 @@ export async function commitImportLengkap(
     patch['statusPengisian'] = computeStatusPengisian(next);
     await updateDoc(ref, patch);
 
-    // Master fields (rules allow dosen: pkkmb/toefl/esq/semkesCount).
+    // Master fields (rules allow dosen: pkkmb/toefl/esq/semkes).
     const masterPatch: Record<string, unknown> = {};
     if (row.pkkmb !== undefined) masterPatch.pkkmb = row.pkkmb;
     if (row.toefl !== undefined) masterPatch.toefl = row.toefl;
     if (row.esq !== undefined) masterPatch.esq = row.esq;
-    if (row.semkesCount !== undefined) masterPatch.semkesCount = row.semkesCount;
     if (Object.keys(masterPatch).length) {
       await setDoc(doc(db, 'mahasiswa', row.npm), masterPatch, { merge: true });
     }
@@ -634,7 +654,7 @@ export async function bukaPeriodeGenerate(periode: {
         prestasi: { ada: false, jenis: null, tingkat: null },
       },
       skripsi: { tahap: 'belum', kendala: '' },
-      permasalahan: '', rekomendasi: '', rekomendasiDO: false,
+      permasalahan: '', rekomendasi: '', rekomendasiDO: false, dikunciMandiri: false,
       statusPengisian: 'kosong',
       submittedAt: null,
     });

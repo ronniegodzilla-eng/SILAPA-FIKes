@@ -8,7 +8,8 @@ import { Card, Icon, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
 import { uploadBuktiFilePublic } from '@/lib/upload-bukti-public';
 import { konsultasiJenisLabel } from '@/lib/compute';
-import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
+import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis, type SemkesEntry } from '@/lib/types';
+import { SemkesSection } from '@/components/SemkesSection';
 
 type Phase = 'loading' | 'error' | 'pick' | 'formLoading' | 'form' | 'saved';
 
@@ -19,10 +20,11 @@ interface FormState {
   pkkmb: boolean; pkkmbBukti: string;
   toefl: boolean; toeflBukti: string;
   esq: boolean; esqBukti: string;
-  semkesCount: number;
+  semkes: SemkesEntry[];
   akademik: {
     sksKrs: number | null; krsBukti: string;
     ipKhs: number | null; khsBukti: string;
+    ipk: number | null;
     konsultasi: KonsultasiEntry[];
     mkNilaiDE: string[];
   };
@@ -65,6 +67,7 @@ export default function IsiDataMandiriPage() {
   const [form, setForm] = useState<FormState | null>(null);
   // Nilai SKS/IP TERSIMPAN saat form dimuat — dipakai untuk deteksi "berubah"
   // di sisi klien (server tetap jadi sumber kebenaran, validasi ini cuma UX).
+  const [terkunci, setTerkunci] = useState(false);
   const [savedSks, setSavedSks] = useState<number | null>(null);
   const [savedIp, setSavedIp] = useState<number | null>(null);
 
@@ -99,6 +102,7 @@ export default function IsiDataMandiriPage() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setIdentitas(data.identitas);
+      setTerkunci(!!data.dikunciMandiri);
       setSemesterKe(data.semesterKe);
       setSavedSks(data.akademik.sksKrs);
       setSavedIp(data.akademik.ipKhs);
@@ -107,7 +111,7 @@ export default function IsiDataMandiriPage() {
         pkkmb: data.pkkmb, pkkmbBukti: data.pkkmbBukti,
         toefl: data.toefl, toeflBukti: data.toeflBukti,
         esq: data.esq, esqBukti: data.esqBukti,
-        semkesCount: data.semkesCount,
+        semkes: data.semkes ?? [],
         akademik: data.akademik,
         nonAkademik: data.nonAkademik,
         skripsi: data.skripsi,
@@ -162,6 +166,11 @@ export default function IsiDataMandiriPage() {
     }
     if (form.esq && !form.esqBukti) {
       setSaveErr('Upload bukti ESQ wajib dilampirkan karena ESQ dicentang.');
+      return;
+    }
+    const semkesTanpaBukti = form.semkes.find((e) => !e.bukti);
+    if (semkesTanpaBukti) {
+      setSaveErr(`Upload bukti sertifikat untuk semkes "${semkesTanpaBukti.judul}".`);
       return;
     }
 
@@ -241,7 +250,25 @@ export default function IsiDataMandiriPage() {
           </Card>
         )}
 
-        {phase === 'form' && form && identitas && (
+        {phase === 'form' && terkunci && identitas && (
+          <Card>
+            <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 6 }}>
+              Data {identitas.nama} sudah terkunci
+            </span>
+            <span style={{ fontSize: 13, color: colors.muted, lineHeight: 1.6, display: 'block', marginBottom: 16 }}>
+              Data untuk NPM {identitas.npm} sudah pernah disimpan, jadi dikunci agar tidak dapat diubah
+              orang lain. Bila masih ada yang perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.
+            </span>
+            <button
+              onClick={kembaliKePilih}
+              style={{ padding: '12px 18px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 13.5, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}
+            >
+              Kembali ke daftar nama
+            </button>
+          </Card>
+        )}
+
+        {phase === 'form' && !terkunci && form && identitas && (
           <>
             <Card style={{ background: colors.subtle }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: colors.muted, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
@@ -283,10 +310,15 @@ export default function IsiDataMandiriPage() {
                   </label>
                   <BuktiUploadField npm={selectedNpm} label="ESQ" value={form.esqBukti} onChange={(url) => set('esqBukti', url)} uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'ESQ', f)} required={form.esq} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Semkes diikuti (target 8)</label>
-                  <input type="number" value={form.semkesCount} onChange={(e) => set('semkesCount', Number(e.target.value))} style={inputStyle} />
-                </div>
+
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <SemkesSection
+                  npm={selectedNpm}
+                  entries={form.semkes}
+                  onChange={(next) => set('semkes', next)}
+                  uploadFn={(f) => uploadBuktiFilePublic(token, selectedNpm, 'Semkes', f)}
+                />
               </div>
             </Card>
 
@@ -315,6 +347,11 @@ export default function IsiDataMandiriPage() {
                       required={form.akademik.ipKhs !== savedIp}
                     />
                     <span style={{ fontSize: 10.5, color: colors.faint, display: 'block', marginTop: 4 }}>Wajib upload KHS resmi SIAKAD bila angka IP diubah.</span>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>IPK</label>
+                    <input type="number" step="0.01" min={0} max={4} value={form.akademik.ipk ?? ''} onChange={(e) => setAk('ipk', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
+                    <span style={{ fontSize: 10.5, color: colors.faint, display: 'block', marginTop: 4 }}>IPK kumulatif sampai semester ini.</span>
                   </div>
                 </div>
 

@@ -76,7 +76,7 @@ export default function MasterMahasiswaPage() {
       const rec: MahasiswaRecord = {
         npm: draft.npm, nama: draft.nama || 'Mahasiswa Baru', prodi: draft.prodi as MahasiswaRecord['prodi'],
         angkatan: draft.angkatan, kelas: draft.kelas as MahasiswaRecord['kelas'], semesterKe: 2, status: 'aktif',
-        pkkmb: false, toefl: false, esq: false, semkesCount: 0,
+        pkkmb: false, toefl: false, esq: false, semkes: [],
         akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
         nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
         skripsi: { tahap: 'belum', kendala: '' },

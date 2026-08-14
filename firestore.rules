@@ -60,7 +60,7 @@ service cloud.firestore {
             && request.resource.data.dosenPaUid == request.auth.uid
             && request.resource.data.keys().hasOnly(
                  ['npm', 'nama', 'prodi', 'angkatan', 'kelas', 'dosenPaUid',
-                  'pkkmb', 'toefl', 'esq', 'semkesCount', 'ipHistory',
+                  'pkkmb', 'toefl', 'esq', 'semkes', 'ipHistory',
                   'pkkmbBukti', 'toeflBukti', 'esqBukti']));
       // Dosen may update only the once-per-degree master fields
       // (pkkmb/toefl/esq/semkes) + ipHistory for their bimbingan.
@@ -68,7 +68,7 @@ service cloud.firestore {
         || (isDosen()
             && resource.data.dosenPaUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['pkkmb', 'toefl', 'esq', 'semkesCount', 'ipHistory', 'updatedAt',
+                 .hasOnly(['pkkmb', 'toefl', 'esq', 'semkes', 'ipHistory', 'updatedAt',
                            'pkkmbBukti', 'toeflBukti', 'esqBukti']));
     }
 
@@ -89,7 +89,7 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(
                  ['npm', 'prodi', 'dosenPaUid', 'semesterKe', 'semesterKeManual',
                   'kelas', 'status', 'akademik', 'nonAkademik', 'skripsi',
-                  'permasalahan', 'rekomendasi', 'rekomendasiDO',
+                  'permasalahan', 'rekomendasi', 'rekomendasiDO', 'dikunciMandiri',
                   'statusPengisian', 'periodeId']));
       allow delete: if isAdmin();
 

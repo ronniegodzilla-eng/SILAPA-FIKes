@@ -51,6 +51,21 @@ export const KONSULTASI_JENIS_PRESET = ['KRS', 'KHS', 'UTS', 'UAS', 'PBL', 'Maga
 export type KonsultasiJenisPreset = (typeof KONSULTASI_JENIS_PRESET)[number];
 export type KonsultasiJenis = KonsultasiJenisPreset | 'lainnya';
 
+/** Batas maksimal seminar kesehatan yang dicatat per mahasiswa (target kelulusan). */
+export const SEMKES_MAX = 8;
+
+/**
+ * Satu seminar kesehatan yang diikuti: judul + bukti (sertifikat). "Jumlah
+ * semkes" TIDAK PERNAH diketik langsung — selalu dihitung dari panjang daftar,
+ * pola yang sama dengan KonsultasiEntry.
+ */
+export interface SemkesEntry {
+  id: string;
+  judul: string;
+  /** Link bukti (sertifikat) di Google Drive. */
+  bukti?: string;
+}
+
 /** Preset jenis UKM (unit kegiatan mahasiswa) — dropdown + "Lainnya" ketik bebas. */
 export const UKM_JENIS_PRESET = [
   'Agama, Seni dan Budaya',
@@ -98,7 +113,12 @@ export interface AppUser {
 
 export interface Akademik {
   sksKrs: number | null;
+  /** IP semester berjalan (dari KHS). */
   ipKhs: number | null;
+  /** IPK kumulatif. Sengaja TIDAK dipakai oleh agregat "IPK rata-rata" di
+   * dashboard/Excel — atas keputusan user, agregat itu tetap merata-ratakan
+   * ipKhs seperti sebelumnya. */
+  ipk?: number | null;
   /** Jumlah konsultasi = konsultasi.length — dihitung, bukan diketik. */
   konsultasi: KonsultasiEntry[];
   mkNilaiDE: string[];
@@ -175,7 +195,10 @@ export interface MahasiswaRecord {
   pkkmb: boolean;
   toefl: boolean;
   esq: boolean;
-  semkesCount: number;
+  /** Seminar kesehatan yang diikuti (maks SEMKES_MAX). Jumlah = panjang daftar.
+   * Menggantikan `semkesCount` lama; record lama yang masih menyimpan angka
+   * dikonversi jadi entri berjudul kosong saat dibaca (lihat mergeRecord). */
+  semkes: SemkesEntry[];
   /** Link bukti (sertifikat) di Google Drive — opsional (§ keputusan pimpinan). Semkes sengaja tidak punya bukti. */
   pkkmbBukti?: string;
   toeflBukti?: string;
@@ -197,6 +220,11 @@ export interface MahasiswaRecord {
    * dosen — TIDAK dapat diisi mahasiswa lewat isi-data mandiri.
    */
   rekomendasiDO?: boolean;
+  /** Record ini terkunci dari jalur isi-data mandiri mahasiswa. Diset OTOMATIS
+   * begitu mahasiswa menyimpan lewat link publik, supaya mahasiswa lain yang
+   * memegang link yang sama (satu link dibagikan sekelas) tidak dapat mengubah
+   * data temannya. Dosen PA tetap bisa mengedit, dan bisa membuka kuncinya. */
+  dikunciMandiri?: boolean;
   statusPengisian: StatusPengisian;
   ipHistory: IpHistoryEntry[];
 }

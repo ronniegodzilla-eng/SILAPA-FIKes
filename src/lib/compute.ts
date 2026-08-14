@@ -1,3 +1,4 @@
+import { SEMKES_MAX } from './types';
 import type { KonsultasiEntry, MahasiswaRecord } from './types';
 
 /** Label tampilan satu entri konsultasi, mis. "KRS" atau custom "Bimbingan skripsi tambahan". */
@@ -48,7 +49,7 @@ export function computeBadges(rec: MahasiswaRecord | null): Badge[] {
   if (!rec.toefl && rec.semesterKe >= 6) {
     list.push({ label: 'Belum TOEFL padahal semester ≥ 6' });
   }
-  if (rec.semkesCount < 8 && rec.semesterKe >= 7) {
+  if (rec.semkes.length < SEMKES_MAX && rec.semesterKe >= 7) {
     list.push({ label: 'Semkes < 8 menjelang skripsi' });
   }
   if (rec.status === 'aktif' && rec.akademik.konsultasi.length === 0) {
@@ -258,7 +259,7 @@ export function computeWadekAggregates(
   ];
   const semkesDistribution = semkesBuckets.map(([label, test]) => ({
     label,
-    count: records.filter((m) => test(m.semkesCount)).length,
+    count: records.filter((m) => test(m.semkes.length)).length,
   }));
 
   return {
@@ -278,7 +279,7 @@ export function computeWadekAggregates(
       pkkmb: `${count((m) => m.pkkmb)}/${total}`,
       toefl: `${count((m) => m.toefl)}/${total}`,
       esq: `${count((m) => m.esq)}/${total}`,
-      semkes: `${count((m) => m.semkesCount >= 8)}/${total}`,
+      semkes: `${count((m) => m.semkes.length >= SEMKES_MAX)}/${total}`,
     },
     skripsiTahap,
     skripsiTahapByProdi,

@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { validateToken } from '@/lib/token-isi-data';
 import { computeStatusPengisian } from '@/lib/compute';
+import { SEMKES_MAX } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * POST {token, npm, patch}  → simpan perubahan (whitelist ketat di server)
  */
 
-const MASTER_WRITABLE = new Set(['pkkmb', 'pkkmbBukti', 'toefl', 'toeflBukti', 'esq', 'esqBukti', 'semkesCount']);
+const MASTER_WRITABLE = new Set(['pkkmb', 'pkkmbBukti', 'toefl', 'toeflBukti', 'esq', 'esqBukti', 'semkes']);
 
 // Bentuk patch yang diterima — apa pun di luar ini DITOLAK (bukan cuma
 // diabaikan) supaya kesalahan/percobaan tak terduga terlihat jelas di log,
@@ -31,10 +32,11 @@ const ALLOWED_SHAPE: Record<string, true | Record<string, true>> = {
   pkkmb: true, pkkmbBukti: true,
   toefl: true, toeflBukti: true,
   esq: true, esqBukti: true,
-  semkesCount: true,
+  semkes: true,
   akademik: {
     sksKrs: true, krsBukti: true,
     ipKhs: true, khsBukti: true,
+    ipk: true,
     konsultasi: true,
     mkNilaiDE: true,
   } as any,
@@ -48,6 +50,7 @@ const ALLOWED_SHAPE: Record<string, true | Record<string, true>> = {
   permasalahan: true,
   rekomendasi: true,
 };
+const SEMKES_KEYS = new Set(['id', 'judul', 'bukti']);
 const BEASISWA_KEYS = new Set(['ada', 'jenis', 'keterangan', 'bukti']);
 const PRESTASI_KEYS = new Set(['ada', 'jenis', 'tingkat', 'bukti']);
 
@@ -111,15 +114,17 @@ export async function GET(req: NextRequest) {
   return Response.json({
     identitas: { npm: String(master.npm), nama: master.nama, prodi: master.prodi, angkatan: master.angkatan, kelas: master.kelas },
     semesterKe: laporan.semesterKe ?? 0,
+    dikunciMandiri: !!laporan.dikunciMandiri,
     status: laporan.status ?? 'aktif',
     pkkmb: !!master.pkkmb, pkkmbBukti: master.pkkmbBukti ?? '',
     toefl: !!master.toefl, toeflBukti: master.toeflBukti ?? '',
     esq: !!master.esq, esqBukti: master.esqBukti ?? '',
-    semkesCount: master.semkesCount ?? 0,
+    semkes: Array.isArray(master.semkes) ? master.semkes : [],
     akademik: {
       sksKrs: laporan.akademik?.sksKrs ?? null,
       krsBukti: laporan.akademik?.krsBukti ?? '',
       ipKhs: laporan.akademik?.ipKhs ?? null,
+      ipk: laporan.akademik?.ipk ?? null,
       khsBukti: laporan.akademik?.khsBukti ?? '',
       konsultasi: laporan.akademik?.konsultasi ?? [],
       mkNilaiDE: laporan.akademik?.mkNilaiDE ?? [],
@@ -168,6 +173,46 @@ export async function POST(req: NextRequest) {
   const laporanSnap = await laporanRef.get();
   if (!laporanSnap.exists) return new Response('Laporan periode ini belum tersedia untuk mahasiswa ini.', { status: 404 });
   const laporan = laporanSnap.data() as any;
+
+  // ── Record yang sudah diisi mahasiswa DIKUNCI ──
+  // Satu link dibagikan ke seluruh bimbingan (grup WA), jadi tanpa ini siapa
+  // pun yang memegang link bisa menimpa data temannya. Kunci dipasang otomatis
+  // di akhir fungsi ini begitu simpan pertama berhasil; hanya dosen PA yang
+  // dapat membukanya kembali lewat form-nya.
+  if (laporan.dikunciMandiri) {
+    return new Response(
+      'Data Anda sudah tersimpan dan dikunci. Bila masih perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.',
+      { status: 423 }
+    );
+  }
+
+  // ── Semkes: judul wajib, bukti wajib, maksimal SEMKES_MAX ──
+  if ('semkes' in patch) {
+    const list = patch.semkes;
+    if (!Array.isArray(list)) return new Response('Format semkes tidak valid.', { status: 400 });
+    if (list.length > SEMKES_MAX) {
+      return new Response(`Semkes maksimal ${SEMKES_MAX} entri.`, { status: 400 });
+    }
+    for (const e of list) {
+      if (!e || typeof e !== 'object') return new Response('Format semkes tidak valid.', { status: 400 });
+      const bad = Object.keys(e).filter((k) => !SEMKES_KEYS.has(k));
+      if (bad.length) return new Response(`Field semkes tidak dikenal: ${bad.join(', ')}.`, { status: 400 });
+      if (!String(e.judul ?? '').trim()) {
+        return new Response('Judul seminar wajib diisi untuk setiap semkes.', { status: 400 });
+      }
+      if (!String(e.bukti ?? '').trim()) {
+        return new Response(`Bukti sertifikat wajib diunggah untuk semkes "${String(e.judul).slice(0, 60)}".`, { status: 400 });
+      }
+    }
+  }
+
+  // ── IP/IPK harus dalam rentang wajar ──
+  if ('ipk' in (patch.akademik ?? {})) {
+    const v = patch.akademik.ipk;
+    if (v !== null && (typeof v !== 'number' || v < 0 || v > 4)) {
+      return new Response('IPK tidak valid (0.00–4.00).', { status: 400 });
+    }
+  }
 
   // ── SKS/IP: bukti KRS/KHS WAJIB setiap kali angkanya benar-benar berubah ──
   const curSks = laporan.akademik?.sksKrs ?? null;
@@ -237,7 +282,14 @@ export async function POST(req: NextRequest) {
     await masterRef.set({ ...masterPatch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
   await laporanRef.set(
-    { ...laporanPatch, statusPengisian, lastSelfServiceEditAt: FieldValue.serverTimestamp() },
+    {
+      ...laporanPatch,
+      statusPengisian,
+      // Kunci otomatis: sekali mahasiswa menyimpan, record ini tertutup dari
+      // jalur publik sampai dosen PA membukanya lagi.
+      dikunciMandiri: true,
+      lastSelfServiceEditAt: FieldValue.serverTimestamp(),
+    },
     { merge: true }
   );
 

@@ -21,6 +21,8 @@ export interface PdfLaporanRow {
   status: string;
   sksKrs: number | null;
   ipKhs: number | null;
+  /** IPK kumulatif (kolom terpisah dari IP semester). */
+  ipk?: number | null;
   jumlahKonsultasi: number;
   mkNilaiDE: string[];
   organisasi: string; // "UKM, HIMA" | "—"
@@ -138,10 +140,11 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
             <Text style={[s.th, cW(14)]}>NPM</Text>
             <Text style={[s.th, cW(24)]}>Nama</Text>
             <Text style={[s.th, cW(6), s.center]}>Smt</Text>
-            <Text style={[s.th, cW(8), s.center]}>SKS</Text>
-            <Text style={[s.th, cW(8), s.center]}>IP</Text>
-            <Text style={[s.th, cW(9), s.center]}>Konsul</Text>
-            <Text style={[s.th, cW(27)]}>MK Nilai D/E</Text>
+            <Text style={[s.th, cW(7), s.center]}>SKS</Text>
+            <Text style={[s.th, cW(7), s.center]}>IP</Text>
+            <Text style={[s.th, cW(7), s.center]}>IPK</Text>
+            <Text style={[s.th, cW(8), s.center]}>Konsul</Text>
+            <Text style={[s.th, cW(23)]}>MK Nilai D/E</Text>
           </View>
           {aktif.map((r, i) => (
             <View style={s.tr} key={r.npm} wrap={false}>
@@ -149,10 +152,11 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
               <Text style={[s.td, cW(14)]}>{r.npm}</Text>
               <Text style={[s.td, cW(24)]}>{r.nama}</Text>
               <Text style={[s.td, cW(6), s.center]}>{r.semesterKe}</Text>
-              <Text style={[s.td, cW(8), s.center]}>{r.sksKrs ?? '—'}</Text>
-              <Text style={[s.td, cW(8), s.center]}>{r.ipKhs != null ? r.ipKhs.toFixed(2) : '—'}</Text>
-              <Text style={[s.td, cW(9), s.center]}>{r.jumlahKonsultasi}</Text>
-              <Text style={[s.td, cW(27)]}>{r.mkNilaiDE.length ? r.mkNilaiDE.join(', ') : '—'}</Text>
+              <Text style={[s.td, cW(7), s.center]}>{r.sksKrs ?? '—'}</Text>
+              <Text style={[s.td, cW(7), s.center]}>{r.ipKhs != null ? r.ipKhs.toFixed(2) : '—'}</Text>
+              <Text style={[s.td, cW(7), s.center]}>{r.ipk != null ? r.ipk.toFixed(2) : '—'}</Text>
+              <Text style={[s.td, cW(8), s.center]}>{r.jumlahKonsultasi}</Text>
+              <Text style={[s.td, cW(23)]}>{r.mkNilaiDE.length ? r.mkNilaiDE.join(', ') : '—'}</Text>
             </View>
           ))}
         </View>

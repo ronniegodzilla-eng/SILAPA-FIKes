@@ -70,7 +70,7 @@ export function downloadTemplateMahasiswa(dosenRoster: DosenRosterEntry[]) {
  */
 export const BIMBINGAN_HEADERS = [
   'npm', 'nama', 'status',
-  'pkkmb', 'toefl', 'esq', 'semkes_count',
+  'pkkmb', 'toefl', 'esq',
   'sks_krs', 'ip_khs', 'jumlah_konsultasi_saat_ini',
   'tambah_konsultasi_jenis', 'tambah_konsultasi_keterangan',
   'mk_nilai_de',
@@ -94,7 +94,7 @@ export function downloadTemplateBimbingan(records: MahasiswaRecord[]) {
     .sort((a, b) => a.npm.localeCompare(b.npm))
     .map((m) => [
       m.npm, m.nama, m.status,
-      ya(m.pkkmb), ya(m.toefl), ya(m.esq), m.semkesCount,
+      ya(m.pkkmb), ya(m.toefl), ya(m.esq),
       m.akademik.sksKrs ?? '', m.akademik.ipKhs ?? '', m.akademik.konsultasi.length,
       '', '', // tambah_konsultasi_jenis / _keterangan — kosong, hanya diisi utk menambah
       m.akademik.mkNilaiDE.join(', '),
@@ -122,7 +122,6 @@ export function downloadTemplateBimbingan(records: MahasiswaRecord[]) {
     ['nama', 'Referensi saja — tidak diimport'],
     ['status', 'aktif | cuti | non_aktif | lulus'],
     ['pkkmb / toefl / esq', 'ya | tidak'],
-    ['semkes_count', 'angka 0–99 (target 8)'],
     ['sks_krs', 'angka 0–200'],
     ['ip_khs', 'angka 0.00–4.00'],
     ['jumlah_konsultasi_saat_ini', 'REFERENSI SAJA (dihitung otomatis) — tidak diimport, boleh diabaikan.'],

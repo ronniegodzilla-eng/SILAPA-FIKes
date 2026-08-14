@@ -101,7 +101,11 @@ export async function GET(req: NextRequest) {
       const sudahPkkmb = own.filter((l) => !!masterOf(l).pkkmb).length;
       const sudahToefl = own.filter((l) => !!masterOf(l).toefl).length;
       const sudahEsq = own.filter((l) => !!masterOf(l).esq).length;
-      const sudahSemkes = own.filter((l) => (masterOf(l).semkesCount ?? 0) >= 8).length;
+      const sudahSemkes = own.filter((l) => {
+        const m = masterOf(l);
+        const n = Array.isArray(m.semkes) ? m.semkes.length : (m.semkesCount ?? 0);
+        return n >= 8;
+      }).length;
       const lulusK3 = k3.filter((l) => l.status === 'lulus').length;
       const lulusKL = kl.filter((l) => l.status === 'lulus').length;
 

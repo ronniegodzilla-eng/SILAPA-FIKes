@@ -354,7 +354,7 @@ function validateMahasiswa(
       npm, nama, prodi: prodi as MahasiswaRecord['prodi'], angkatan,
       kelas: kelas as MahasiswaRecord['kelas'], semesterKe: 2, status: 'aktif',
       dosenPaUid: dosen ? dosen.dosenUid : undefined,
-      pkkmb: false, toefl: false, esq: false, semkesCount: 0,
+      pkkmb: false, toefl: false, esq: false, semkes: [],
       akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
       nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
       skripsi: { tahap: 'belum', kendala: '' },

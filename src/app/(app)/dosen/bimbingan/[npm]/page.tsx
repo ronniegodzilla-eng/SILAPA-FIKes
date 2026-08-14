@@ -8,6 +8,7 @@ import { konsultasiJenisLabel, computeSemesterKe } from '@/lib/compute';
 import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
+import { SemkesSection } from '@/components/SemkesSection';
 import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
 
 export default function FormLaporanPage() {
@@ -106,6 +107,35 @@ export default function FormLaporanPage() {
         </div>
       </Card>
 
+      {/* Kunci isi-data mandiri: terpasang OTOMATIS begitu mahasiswa menyimpan
+          lewat link publik, supaya teman sekelas yang memegang link yang sama
+          tidak bisa mengubah datanya. Dosen tetap bebas mengedit di sini. */}
+      <Card padding="14px 18px" style={{ background: rec.dikunciMandiri ? colors.greenSoftBg : colors.subtle, border: `1px solid ${rec.dikunciMandiri ? colors.greenSoftBorder : colors.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Icon
+            path={rec.dikunciMandiri ? 'M7 11V7a5 5 0 0 1 10 0v4 M5 11h14v10H5V11Z' : 'M7 11V7a5 5 0 0 1 9.9-1 M5 11h14v10H5V11Z'}
+            size={17}
+            stroke={rec.dikunciMandiri ? colors.green : colors.muted}
+          />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: rec.dikunciMandiri ? colors.green : colors.ink, display: 'block' }}>
+              {rec.dikunciMandiri ? 'Terkunci dari pengisian mandiri' : 'Terbuka untuk pengisian mandiri'}
+            </span>
+            <span style={{ fontSize: 11.5, color: colors.muted, lineHeight: 1.5 }}>
+              {rec.dikunciMandiri
+                ? 'Mahasiswa tidak dapat lagi mengubah data ini lewat link. Buka kunci bila ia perlu memperbaiki.'
+                : 'Akan terkunci otomatis begitu mahasiswa menyimpan lewat link isi data mandiri.'}
+            </span>
+          </div>
+          <button
+            onClick={() => set('dikunciMandiri', !rec.dikunciMandiri)}
+            style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12.5, fontWeight: 700, color: rec.dikunciMandiri ? colors.green : colors.ink, cursor: 'pointer' }}
+          >
+            {rec.dikunciMandiri ? 'Buka Kunci' : 'Kunci Sekarang'}
+          </button>
+        </div>
+      </Card>
+
       {/* status & once-per-degree */}
       <Card padding="20px 24px">
         <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 14 }}>
@@ -133,10 +163,13 @@ export default function FormLaporanPage() {
             <CheckField label="ESQ" checked={rec.esq} onChange={(v) => set('esq', v)} />
             <BuktiUploadField npm={npm} label="ESQ" value={rec.esqBukti} onChange={(url) => set('esqBukti', url)} required={rec.esq} />
           </div>
-          <div>
-            <label style={labelStyle}>Semkes diikuti (target 8)</label>
-            <input type="number" value={rec.semkesCount} onChange={(e) => set('semkesCount', Number(e.target.value))} style={inputStyle} />
-          </div>
+        </div>
+        <div style={{ marginTop: 18 }}>
+          <SemkesSection
+            npm={npm}
+            entries={rec.semkes}
+            onChange={(next) => set('semkes', next)}
+          />
         </div>
       </Card>
 
@@ -152,6 +185,10 @@ export default function FormLaporanPage() {
               <div>
                 <label style={labelStyle}>IP (KHS)</label>
                 <input type="number" step="0.01" min={0} max={4} value={rec.akademik.ipKhs ?? ''} onChange={(e) => set('akademik.ipKhs', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>IPK</label>
+                <input type="number" step="0.01" min={0} max={4} value={rec.akademik.ipk ?? ''} onChange={(e) => set('akademik.ipk', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
               </div>
             </div>
 
