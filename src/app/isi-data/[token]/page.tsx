@@ -450,6 +450,17 @@ export default function IsiDataMandiriPage() {
             {saveErr && (
               <div style={{ background: colors.dangerBg, border: `1px solid ${colors.dangerBorder}`, borderRadius: 12, padding: '11px 16px', fontSize: 12.5, fontWeight: 600, color: colors.danger }}>
                 {saveErr}
+                {/* Halaman kedaluwarsa (bundel lama masih terbuka di HP saat
+                    aplikasi ter-deploy ulang) — beri jalan keluar yang jelas,
+                    jangan biarkan mahasiswa buntu dengan pesan teknis. */}
+                {/muat ulang|versi lama/i.test(saveErr) && (
+                  <button
+                    onClick={() => window.location.reload()}
+                    style={{ display: 'block', marginTop: 10, padding: '9px 16px', borderRadius: 9, border: 'none', background: colors.danger, color: colors.white, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Muat Ulang Halaman
+                  </button>
+                )}
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>

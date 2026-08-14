@@ -54,6 +54,27 @@ const SEMKES_KEYS = new Set(['id', 'judul', 'bukti']);
 const BEASISWA_KEYS = new Set(['ada', 'jenis', 'keterangan', 'bukti']);
 const PRESTASI_KEYS = new Set(['ada', 'jenis', 'tingkat', 'bukti']);
 
+/**
+ * Nama field yang PERNAH dipakai lalu diganti. Halaman publik dibuka
+ * mahasiswa di HP dan bisa tertinggal di bundel lama (mereka membuka link,
+ * mengisi lama-lama, lalu menekan Simpan setelah aplikasi ter-deploy ulang).
+ * Field-field ini dibuang diam-diam, bukan ditolak — kalau ditolak, isian
+ * mereka hilang dengan pesan yang tidak mereka mengerti. Field yang memang
+ * TERKUNCI (npm/nama/prodi/angkatan/kelas/dosenPaUid) tetap ditolak keras.
+ */
+const RETIRED_KEYS = new Set(['semkesCount']);
+
+/**
+ * Field identitas yang memang SENGAJA tidak boleh disentuh dari jalur publik.
+ * Dibedakan dari field "tidak dikenal" biasa supaya percobaan mengubahnya
+ * mendapat pesan tegas — bukan disamarkan jadi "halaman versi lama".
+ */
+const LOCKED_KEYS = new Set(['npm', 'nama', 'prodi', 'angkatan', 'kelas', 'dosenPaUid']);
+
+function stripRetiredKeys(patch: any) {
+  for (const key of RETIRED_KEYS) delete patch[key];
+}
+
 function findUnknownKeys(patch: any): string[] {
   const bad: string[] = [];
   for (const key of Object.keys(patch ?? {})) {
@@ -156,9 +177,21 @@ export async function POST(req: NextRequest) {
   if (!v.ok) return new Response(v.message, { status: v.status });
   const { ctx } = v;
 
+  stripRetiredKeys(patch);
   const bad = findUnknownKeys(patch);
   if (bad.length) {
-    return new Response(`Field tidak diizinkan diubah lewat isi-data mandiri: ${bad.join(', ')}.`, { status: 400 });
+    const terkunci = bad.filter((k) => LOCKED_KEYS.has(k));
+    if (terkunci.length) {
+      return new Response(
+        `Field tidak diizinkan diubah lewat isi-data mandiri: ${terkunci.join(', ')}.`,
+        { status: 400 }
+      );
+    }
+    return new Response(
+      `Halaman ini sepertinya versi lama (field tidak dikenal: ${bad.join(', ')}). ` +
+        'Muat ulang halaman lalu isi kembali.',
+      { status: 400 }
+    );
   }
 
   const db = getAdminDb();
