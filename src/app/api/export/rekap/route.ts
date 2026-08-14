@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       return [...semCounts, ipk];
     }
 
-    let totCuti = 0, totNonaktif = 0, totHima = 0, totUkm = 0;
+    let totCuti = 0, totNonaktif = 0, totRekDO = 0, totHima = 0, totUkm = 0;
     let totPrestasi = 0, totBeasiswa = 0;
     let totSudahPkkmb = 0, totSudahToefl = 0, totSudahEsq = 0, totSudahSemkes = 0;
     let totBelumPkkmb = 0, totBelumToefl = 0, totBelumEsq = 0, totBelumSemkes = 0;
@@ -79,6 +79,9 @@ export async function GET(req: NextRequest) {
 
       const cuti = own.filter((l) => l.status === 'cuti').length;
       const nonaktif = own.filter((l) => l.status === 'non_aktif').length;
+      // Rekomendasi DO hanya sah untuk mahasiswa non-aktif — status ikut
+      // diperiksa agar flag lama yang tertinggal tidak ikut terhitung.
+      const rekDO = own.filter((l) => l.status === 'non_aktif' && l.rekomendasiDO).length;
       const hima = own.filter((l) => l.nonAkademik?.hima).length;
       const ukmRecs = own.filter((l) => l.nonAkademik?.ukm);
       const ukm = ukmRecs.length;
@@ -102,7 +105,7 @@ export async function GET(req: NextRequest) {
       const lulusK3 = k3.filter((l) => l.status === 'lulus').length;
       const lulusKL = kl.filter((l) => l.status === 'lulus').length;
 
-      totCuti += cuti; totNonaktif += nonaktif; totHima += hima; totUkm += ukm;
+      totCuti += cuti; totNonaktif += nonaktif; totRekDO += rekDO; totHima += hima; totUkm += ukm;
       totPrestasi += prestasiRecs.length; totBeasiswa += beasiswaRecs.length;
       totSudahPkkmb += sudahPkkmb; totSudahToefl += sudahToefl; totSudahEsq += sudahEsq; totSudahSemkes += sudahSemkes;
       totBelumPkkmb += own.length - sudahPkkmb; totBelumToefl += own.length - sudahToefl;
@@ -114,7 +117,7 @@ export async function GET(req: NextRequest) {
         ...prodiStats(k3, semK3KL),
         ...prodiStats(kl, semK3KL),
         ...prodiStats(s2km, semS2KM),
-        cuti, nonaktif,
+        cuti, nonaktif, rekDO,
         hima, ukm, ukmJenis,
         prestasiRecs.length, prestasiJenis,
         beasiswaRecs.length, beasiswaJenis,
@@ -131,7 +134,7 @@ export async function GET(req: NextRequest) {
       ...prodiStats(laporan.filter((l) => l.prodi === 'K3'), semK3KL),
       ...prodiStats(laporan.filter((l) => l.prodi === 'KL'), semK3KL),
       ...prodiStats(laporan.filter((l) => l.prodi === 'S2KM'), semS2KM),
-      totCuti, totNonaktif,
+      totCuti, totNonaktif, totRekDO,
       totHima, totUkm, '',
       totPrestasi, '',
       totBeasiswa, '',
@@ -180,7 +183,7 @@ export async function GET(req: NextRequest) {
     prodiGroup('PRODI K3', semK3KL);
     prodiGroup('PRODI KESEHATAN LINGKUNGAN', semK3KL);
     prodiGroup('PRODI MAGISTER KESEHATAN MASYARAKAT', semS2KM);
-    simpleGroup('JUMLAH MAHASISWA', ['CUTI', 'TIDAK AKTIF']);
+    simpleGroup('JUMLAH MAHASISWA', ['CUTI', 'TIDAK AKTIF', 'REKOMENDASI DO']);
     simpleGroup('JUMLAH MAHASISWA DALAM KEIKUTSERTAAN ORGANISASI', ['HIMA', 'UKM', 'JENIS UKM']);
     simpleGroup('PRESTASI', ['JUMLAH', 'JENIS']);
     simpleGroup('BEASISWA', ['JUMLAH', 'JENIS']);
@@ -202,10 +205,15 @@ export async function GET(req: NextRequest) {
     ]);
     sheet1['!merges'] = merges;
     sheet1['!cols'] = row2.map((_, i) => ({ wch: i === 0 ? 32 : 8 }));
-    // Kolom JENIS (UKM/prestasi/beasiswa) lebih lebar. Indeks bergeser +1 pada
-    // prestasi/beasiswa karena kolom "JENIS UKM" baru disisipkan di grup organisasi.
-    const jenisCols = [24, 26, 28];
-    jenisCols.forEach((c) => { if (sheet1['!cols']![c]) sheet1['!cols']![c] = { wch: 20 }; });
+    // Kolom teks bebas (JENIS UKM/prestasi/beasiswa) dan header panjang
+    // ("REKOMENDASI DO") dilebarkan. Indeksnya DITURUNKAN dari label header,
+    // bukan di-hardcode — tiap kali satu kolom baru disisipkan di grup
+    // sebelumnya, indeks kolom JENIS ikut bergeser dan pernah salah karenanya.
+    row2.forEach((label: any, c: number) => {
+      if (typeof label !== 'string' || !sheet1['!cols']![c]) return;
+      if (label.includes('JENIS')) sheet1['!cols']![c] = { wch: 20 };
+      else if (label === 'REKOMENDASI DO') sheet1['!cols']![c] = { wch: 16 };
+    });
 
     // ── Sheet 2: PROPOSAL SKRIPSI — urutan kolom identik file lama ──────
     const tahapLabel: Record<string, string> = {
@@ -297,11 +305,43 @@ export async function GET(req: NextRequest) {
     ]);
     sheet4['!cols'] = [{ wch: 4 }, { wch: 16 }, { wch: 28 }, { wch: 7 }, { wch: 30 }, { wch: 12 }, { wch: 55 }];
 
+    // ── Sheet 5: REKOMENDASI DO — daftar nama yang bisa ditindaklanjuti ──
+    // Sheet REKAPITULASI hanya memuat JUMLAH per dosen; Wakil Dekan I perlu
+    // tahu SIAPA saja mahasiswanya tanpa harus membuka PDF tiap dosen satu
+    // per satu. Status non-aktif ikut difilter (bukan hanya flag-nya) supaya
+    // flag lama yang tertinggal dari status sebelumnya tidak ikut terdaftar.
+    const doRows = laporan
+      .filter((l) => l.status === 'non_aktif' && l.rekomendasiDO)
+      .sort((a, b) => String(a.npm).localeCompare(String(b.npm)));
+
+    const sheet5 = XLSX.utils.aoa_to_sheet([
+      ['REKOMENDASI DROP OUT (DO) — usulan Dosen PA atas mahasiswa non-aktif'],
+      [`Periode ${periodeLabel}`],
+      [],
+      ['No', 'NPM', 'Nama', 'Prodi', 'Smt', 'Dosen PA', 'Permasalahan', 'Rekomendasi'],
+      ...(doRows.length
+        ? doRows.map((l, i) => [
+            i + 1,
+            String(l.npm), // NPM sebagai teks — jangan pernah jadi angka (PRD §4)
+            (masterByNpm.get(l.npm) ?? {}).nama ?? '',
+            l.prodi,
+            l.semesterKe ?? '',
+            namaByUid.get(l.dosenPaUid) ?? '—',
+            l.permasalahan || '—',
+            l.rekomendasi || '—',
+          ])
+        : [['—', '—', 'Tidak ada mahasiswa yang direkomendasikan DO pada periode ini.', '', '', '', '', '']]),
+      [],
+      ['Catatan: usulan ini berasal dari Dosen PA melalui form laporan bimbingan dan bukan keputusan akhir fakultas.'],
+    ]);
+    sheet5['!cols'] = [{ wch: 4 }, { wch: 16 }, { wch: 28 }, { wch: 7 }, { wch: 5 }, { wch: 30 }, { wch: 45 }, { wch: 45 }];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet1, 'REKAPITULASI');
     XLSX.utils.book_append_sheet(wb, sheet2, 'PROPOSAL SKRIPSI');
     XLSX.utils.book_append_sheet(wb, sheet3, 'DISTRIBUSI DOSEN PA');
     XLSX.utils.book_append_sheet(wb, sheet4, 'BUKTI');
+    XLSX.utils.book_append_sheet(wb, sheet5, 'REKOMENDASI DO');
     const buf: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     return new Response(new Uint8Array(buf), {

@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
           semkesCount: m.semkesCount ?? 0,
           permasalahan: l.permasalahan ?? '',
           rekomendasi: l.rekomendasi ?? '',
+          rekomendasiDO: !!l.rekomendasiDO,
           organisasiBukti: l.nonAkademik?.organisasiBukti || undefined,
           beasiswaBukti: l.nonAkademik?.beasiswa?.bukti || undefined,
           prestasiBukti: l.nonAkademik?.prestasi?.bukti || undefined,

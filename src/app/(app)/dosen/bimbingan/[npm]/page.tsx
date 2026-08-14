@@ -27,6 +27,13 @@ export default function FormLaporanPage() {
   const showSkripsi = showAkademik && rec.semesterKe >= 7;
   const kp = kelengkapanPill(rec.statusPengisian);
   const set = (path: string, value: unknown) => updateField(npm, path, value);
+  // Rekomendasi DO hanya berlaku bagi mahasiswa non-aktif — begitu statusnya
+  // dipindah, flag itu ikut dibersihkan supaya tidak tertinggal diam-diam lalu
+  // terbawa ke laporan PDF/rekap fakultas.
+  const setStatus = (next: string) => {
+    set('status', next);
+    if (next !== 'non_aktif' && rec.rekomendasiDO) set('rekomendasiDO', false);
+  };
 
   return (
     <div className="silapa-fade" style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 880 }}>
@@ -107,7 +114,7 @@ export default function FormLaporanPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 14, alignItems: 'end' }}>
           <div>
             <label style={labelStyle}>Status mahasiswa</label>
-            <select value={rec.status} onChange={(e) => set('status', e.target.value)} style={inputStyle}>
+            <select value={rec.status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
               <option value="aktif">Aktif</option>
               <option value="cuti">Cuti</option>
               <option value="non_aktif">Non-aktif</option>
@@ -256,6 +263,23 @@ export default function FormLaporanPage() {
         <textarea value={rec.permasalahan} onChange={(e) => set('permasalahan', e.target.value)} rows={3} style={{ ...inputStyle, padding: '10px 12px', marginBottom: 14, resize: 'vertical', fontFamily: 'inherit' }} />
         <label style={labelStyle}>Rekomendasi</label>
         <textarea value={rec.rekomendasi} onChange={(e) => set('rekomendasi', e.target.value)} rows={3} style={{ ...inputStyle, padding: '10px 12px', resize: 'vertical', fontFamily: 'inherit' }} />
+        {rec.status === 'non_aktif' && (
+          <div
+            style={{
+              marginTop: 14, padding: '12px 14px', borderRadius: 10,
+              border: `1px solid ${rec.rekomendasiDO ? colors.dangerBorder : colors.border}`,
+              background: rec.rekomendasiDO ? colors.dangerBg : colors.subtle,
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: rec.rekomendasiDO ? colors.danger : colors.ink }}>
+              <input type="checkbox" checked={!!rec.rekomendasiDO} onChange={(e) => set('rekomendasiDO', e.target.checked)} />
+              Rekomendasi DO (drop out)
+            </label>
+            <span style={{ fontSize: 11.5, color: colors.muted, display: 'block', marginTop: 6, lineHeight: 1.5 }}>
+              Centang bila Anda merekomendasikan mahasiswa non-aktif ini untuk di-DO. Isi alasannya pada kolom Permasalahan di atas — keduanya ikut tampil di laporan PDF Anda dan rekap Wakil Dekan I.
+            </span>
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
           <Pill label={KELENGKAPAN_LABEL[rec.statusPengisian]} color={kp.color} bg={kp.bg} />
         </div>

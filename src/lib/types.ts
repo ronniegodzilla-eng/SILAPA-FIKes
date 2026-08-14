@@ -182,6 +182,13 @@ export interface MahasiswaRecord {
   skripsi: Skripsi;
   permasalahan: string;
   rekomendasi: string;
+  /**
+   * Dosen PA merekomendasikan mahasiswa ini untuk DO (drop out). Hanya
+   * relevan/ditampilkan saat `status === 'non_aktif'`, dan ikut dikosongkan
+   * otomatis bila status dipindah ke selain non-aktif. Penilaian akademik
+   * dosen — TIDAK dapat diisi mahasiswa lewat isi-data mandiri.
+   */
+  rekomendasiDO?: boolean;
   statusPengisian: StatusPengisian;
   ipHistory: IpHistoryEntry[];
 }

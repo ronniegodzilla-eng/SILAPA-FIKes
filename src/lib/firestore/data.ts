@@ -73,6 +73,7 @@ function splitRecord(rec: MahasiswaRecord) {
     skripsi: rec.skripsi,
     permasalahan: rec.permasalahan,
     rekomendasi: rec.rekomendasi,
+    rekomendasiDO: rec.rekomendasiDO ?? false,
     statusPengisian: rec.statusPengisian,
   };
   return { master, laporan };
@@ -111,6 +112,7 @@ function mergeRecord(master: any, laporan: any): MahasiswaRecord {
     skripsi: laporan?.skripsi ?? { tahap: 'belum', kendala: '' },
     permasalahan: laporan?.permasalahan ?? '',
     rekomendasi: laporan?.rekomendasi ?? '',
+    rekomendasiDO: laporan?.rekomendasiDO ?? false,
     statusPengisian: laporan?.statusPengisian ?? 'kosong',
   };
 }
@@ -630,7 +632,7 @@ export async function bukaPeriodeGenerate(periode: {
         prestasi: { ada: false, jenis: null, tingkat: null },
       },
       skripsi: { tahap: 'belum', kendala: '' },
-      permasalahan: '', rekomendasi: '',
+      permasalahan: '', rekomendasi: '', rekomendasiDO: false,
       statusPengisian: 'kosong',
       submittedAt: null,
     });

@@ -32,6 +32,8 @@ export interface PdfLaporanRow {
   semkesCount: number;
   permasalahan: string;
   rekomendasi: string;
+  /** Dosen merekomendasikan mahasiswa non-aktif ini untuk DO (drop out). */
+  rekomendasiDO?: boolean;
   /** Link bukti (opsional) — kalau ada, sel terkait di tabel B jadi bisa diklik. */
   organisasiBukti?: string;
   beasiswaBukti?: string;
@@ -192,15 +194,21 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
         </View>
 
         {/* C. Non-Aktif / Cuti */}
-        <Text style={s.section}>C. NON-AKTIF / CUTI</Text>
+        <Text style={s.section}>
+          C. NON-AKTIF / CUTI{'   '}
+          <Text style={{ fontFamily: 'Helvetica', fontSize: 7, color: '#5C6B60' }}>
+            (Rek. DO = direkomendasikan dosen PA untuk drop out; hanya berlaku bagi mahasiswa non-aktif)
+          </Text>
+        </Text>
         <View style={s.table}>
           <View style={s.tr}>
             <Text style={[s.th, cW(4), s.center]}>No</Text>
-            <Text style={[s.th, cW(14)]}>NPM</Text>
-            <Text style={[s.th, cW(20)]}>Nama</Text>
-            <Text style={[s.th, cW(10), s.center]}>Status</Text>
-            <Text style={[s.th, cW(26)]}>Permasalahan</Text>
-            <Text style={[s.th, cW(26)]}>Rekomendasi</Text>
+            <Text style={[s.th, cW(13)]}>NPM</Text>
+            <Text style={[s.th, cW(18)]}>Nama</Text>
+            <Text style={[s.th, cW(9), s.center]}>Status</Text>
+            <Text style={[s.th, cW(8), s.center]}>Rek. DO</Text>
+            <Text style={[s.th, cW(24)]}>Permasalahan</Text>
+            <Text style={[s.th, cW(24)]}>Rekomendasi</Text>
           </View>
           {nonAktif.length === 0 ? (
             <View style={s.tr}>
@@ -210,11 +218,14 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
             nonAktif.map((r, i) => (
               <View style={s.tr} key={r.npm} wrap={false}>
                 <Text style={[s.td, cW(4), s.center]}>{i + 1}</Text>
-                <Text style={[s.td, cW(14)]}>{r.npm}</Text>
-                <Text style={[s.td, cW(20)]}>{r.nama}</Text>
-                <Text style={[s.td, cW(10), s.center]}>{r.status === 'cuti' ? 'Cuti' : 'Non-aktif'}</Text>
-                <Text style={[s.td, cW(26)]}>{r.permasalahan || '—'}</Text>
-                <Text style={[s.td, cW(26)]}>{r.rekomendasi || '—'}</Text>
+                <Text style={[s.td, cW(13)]}>{r.npm}</Text>
+                <Text style={[s.td, cW(18)]}>{r.nama}</Text>
+                <Text style={[s.td, cW(9), s.center]}>{r.status === 'cuti' ? 'Cuti' : 'Non-aktif'}</Text>
+                <Text style={[s.td, cW(8), s.center, r.rekomendasiDO ? { color: '#B0453A', fontFamily: 'Helvetica-Bold' } : {}]}>
+                  {r.rekomendasiDO ? 'YA' : '—'}
+                </Text>
+                <Text style={[s.td, cW(24)]}>{r.permasalahan || '—'}</Text>
+                <Text style={[s.td, cW(24)]}>{r.rekomendasi || '—'}</Text>
               </View>
             ))
           )}

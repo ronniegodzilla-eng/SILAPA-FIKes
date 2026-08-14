@@ -89,7 +89,8 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(
                  ['npm', 'prodi', 'dosenPaUid', 'semesterKe', 'semesterKeManual',
                   'kelas', 'status', 'akademik', 'nonAkademik', 'skripsi',
-                  'permasalahan', 'rekomendasi', 'statusPengisian', 'periodeId']));
+                  'permasalahan', 'rekomendasi', 'rekomendasiDO',
+                  'statusPengisian', 'periodeId']));
       allow delete: if isAdmin();
 
       // Dosen edits only their own, only while the periode is unlocked,
