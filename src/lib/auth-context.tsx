@@ -93,7 +93,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // logout manual.
     const unsub = onIdTokenChanged(auth, async (user) => {
       setFirebaseUser(user);
-      syncSessionCookie(user);
+      // DITUNGGU, jangan fire-and-forget: halaman login mengalihkan ke
+      // dashboard begitu `appUser` terisi & `loading` false, sedangkan
+      // middleware.ts menolak rute /dosen|/admin/|wadek bila cookie sesi
+      // belum ada. Tanpa await, keduanya berlomba dan sesekali cookie kalah
+      // cepat — pengguna dilempar balik ke /login dan baru bisa masuk
+      // setelah refresh manual.
+      await syncSessionCookie(user);
       if (user && db) {
         try {
           const snap = await getDoc(doc(db, 'users', user.uid));

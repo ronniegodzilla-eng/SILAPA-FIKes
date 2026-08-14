@@ -120,15 +120,33 @@ export default function PenggunaPage() {
 
   const usersByUid = useMemo(() => new Map(users.map((u) => [u.uid, u])), [users]);
 
-  // Baris dosen dari roster (join dengan akun bila ada) + akun non-dosen.
-  const dosenRows = dosenRoster.map((d) => ({
+  // Baris dosen dari roster periode ini (join dengan akun bila ada).
+  const rosterRows = dosenRoster.map((d) => ({
     dosenUid: d.dosenUid,
     nama: d.nama,
-    prodi: d.prodi,
+    prodi: d.prodi as string,
     account: usersByUid.get(d.dosenUid) ?? users.find((u) => u.nama === d.nama) ?? null,
   }));
   const rosterUids = new Set(dosenRoster.map((d) => d.dosenUid));
-  const lainnya = users.filter((u) => !rosterUids.has(u.uid) && !dosenRows.some((r) => r.account?.uid === u.uid));
+  const rosterAccountUids = new Set(rosterRows.map((r) => r.account?.uid).filter(Boolean) as string[]);
+
+  // `dosenRoster` berasal dari koleksi `submissions` periode aktif, jadi dosen
+  // PA yang akunnya BARU dibuat (belum diplot mahasiswa, belum punya baris
+  // submission) tidak ada di sana. Dulu mereka jatuh ke tabel "Admin & Wakil
+  // Dekan" — salah kamar. Sekarang dijaring balik lewat perannya.
+  const dosenTanpaRoster = users
+    .filter((u) => (u.roles ?? []).includes('dosen_pa') && !rosterUids.has(u.uid) && !rosterAccountUids.has(u.uid))
+    .map((u) => ({
+      dosenUid: u.uid,
+      nama: u.nama,
+      prodi: u.prodiHomebase ?? '—',
+      account: u,
+    }));
+
+  const dosenRows = [...rosterRows, ...dosenTanpaRoster];
+  const lainnya = users.filter(
+    (u) => !rosterUids.has(u.uid) && !dosenRows.some((r) => r.account?.uid === u.uid)
+  );
 
   // Tabel Dosen PA: cari + urut + halaman (tabel "Admin & Wakil Dekan" sengaja
   // dibiarkan polos — isinya hanya 2–4 baris).
@@ -327,7 +345,7 @@ export default function PenggunaPage() {
 
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflowX: 'auto' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${colors.rowBorder}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, flex: 1 }}>Dosen PA ({dosenRoster.length})</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, flex: 1 }}>Dosen PA ({dosenRows.length})</span>
           <TableSearch value={dosenQ} onChange={setDosenQ} placeholder="Cari nama atau email..." />
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

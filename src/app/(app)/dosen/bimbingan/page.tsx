@@ -10,7 +10,7 @@ import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
-import type { ImportLengkapRow } from '@/lib/firestore/data';
+import { updateSubmissionJumlah, type ImportLengkapRow } from '@/lib/firestore/data';
 import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
 const TH: React.CSSProperties = {
@@ -69,7 +69,7 @@ function parseNum(v: string, opts: { int?: boolean; min: number; max: number }):
 export default function DaftarBimbinganPage() {
   const router = useRouter();
   const { appUser } = useAuth();
-  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists } = useData();
+  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists, periode } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Muat ulang setiap kali halaman ini dibuka — supaya perubahan yang baru
@@ -197,6 +197,15 @@ export default function DaftarBimbinganPage() {
         permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [],
       };
       await addMahasiswa(rec);
+      // Naikkan juga hitungan bimbingan di dokumen `submissions` dosen ini —
+      // itulah angka "Jumlah Bimbingan" yang dibaca halaman Plotting &
+      // Verifikasi Wadek. Tanpa ini mahasiswa baru tampil di daftar bimbingan
+      // dan master data, tapi rekap per-dosen tertinggal satu.
+      // (Jalur admin — import massal & plotting — mengurus hitungannya sendiri,
+      // jadi sengaja TIDAK ditaruh di dalam addMahasiswa agar tidak dobel.)
+      if (periode) {
+        await updateSubmissionJumlah(periode.id, appUser.nama, 1).catch(() => {});
+      }
       await reload();
       setTambahOpen(false);
     } catch (e: any) {
