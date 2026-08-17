@@ -49,6 +49,9 @@ function resolveActiveRole(uid: string, roles: Role[]): Role | null {
   return roles[0];
 }
 
+/** Batas tunggu sinkron cookie sesi — lihat catatan di bawah. */
+const SESSION_SYNC_TIMEOUT_MS = 4000;
+
 /** Sinkron cookie httpOnly yang dibaca middleware.ts (PRD §3). Best-effort. */
 async function syncSessionCookie(user: User | null) {
   try {
@@ -58,13 +61,33 @@ async function syncSessionCookie(user: User | null) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
+        signal: AbortSignal.timeout(SESSION_SYNC_TIMEOUT_MS),
       });
     } else {
-      await fetch('/api/session', { method: 'DELETE' });
+      await fetch('/api/session', { method: 'DELETE', signal: AbortSignal.timeout(SESSION_SYNC_TIMEOUT_MS) });
     }
   } catch {
     // Middleware akan fallback ke client-side guard bila cookie tidak sinkron.
   }
+}
+
+/**
+ * Tunggu sinkron cookie, TAPI jangan pernah lebih dari batas waktu.
+ *
+ * Menunggu itu perlu: halaman login mengalihkan ke dashboard begitu appUser
+ * terisi, sedangkan middleware menolak rute /dosen|/admin|/wadek bila cookie
+ * belum ada — tanpa menunggu, keduanya berlomba dan pengguna terlempar balik.
+ *
+ * Tapi menunggu TANPA BATAS membuat aplikasi menggantung total di jaringan
+ * seluler yang buruk: `loading` tidak pernah selesai, layar berhenti di
+ * "memproses". Karena itu dibatasi — bila lewat batas, aplikasi tetap jalan
+ * dan penjaga sisi klien di (app)/layout.tsx yang mengamankan rutenya.
+ */
+async function syncSessionCookieBounded(user: User | null) {
+  await Promise.race([
+    syncSessionCookie(user),
+    new Promise((resolve) => setTimeout(resolve, SESSION_SYNC_TIMEOUT_MS)),
+  ]);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -95,13 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // logout manual.
     const unsub = onIdTokenChanged(auth, async (user) => {
       setFirebaseUser(user);
-      // DITUNGGU, jangan fire-and-forget: halaman login mengalihkan ke
-      // dashboard begitu `appUser` terisi & `loading` false, sedangkan
-      // middleware.ts menolak rute /dosen|/admin/|wadek bila cookie sesi
-      // belum ada. Tanpa await, keduanya berlomba dan sesekali cookie kalah
-      // cepat — pengguna dilempar balik ke /login dan baru bisa masuk
-      // setelah refresh manual.
-      await syncSessionCookie(user);
+      // Ditunggu (berbatas waktu) supaya cookie sudah ada sebelum halaman
+      // login mengalihkan ke dashboard — lihat syncSessionCookieBounded.
+      await syncSessionCookieBounded(user);
       if (user && db) {
         try {
           const snap = await getDoc(doc(db, 'users', user.uid));
