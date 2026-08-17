@@ -33,12 +33,17 @@ const TH: React.CSSProperties = {
 };
 
 const PRODI = ['K3', 'KL', 'S2KM'];
+// Kelas boleh dikosongkan: data SIAKAD asli tidak selalu memuat kelas, dan
+// tipe Kelas memang punya nilai '-' untuk "tanpa kelas". Sel kosong dinormalkan
+// ke '-' alih-alih menggagalkan barisnya.
 const KELAS = ['REG A', 'REG B', 'REG C', 'REG D'];
+const KELAS_KOSONG = '-';
 
 /** Kolom wajib per mode — file tanpa kolom ini ditolak sebelum preview. */
 const REQUIRED_COLS: Record<Mode, { cols: string[][]; label: string }> = {
   nilai: { cols: [['npm'], ['sks_krs', 'sks'], ['ip_khs', 'ip', 'ipk']], label: 'npm, sks_krs, ip_khs' },
-  mahasiswa: { cols: [['npm'], ['nama'], ['prodi'], ['angkatan'], ['kelas']], label: 'npm, nama, prodi, angkatan, kelas' },
+  // `kelas` sengaja tidak wajib — boleh dikosongkan, bahkan kolomnya boleh absen.
+  mahasiswa: { cols: [['npm'], ['nama'], ['prodi'], ['angkatan']], label: 'npm, nama, prodi, angkatan (kelas opsional)' },
 };
 
 function missingColumns(mode: Mode, sample: Record<string, string>): string[] {
@@ -339,7 +344,8 @@ function validateMahasiswa(
     const npm = r.npm ?? '';
     const nama = r.nama ?? '';
     const prodi = (r.prodi ?? '').toUpperCase();
-    const kelas = (r.kelas ?? '').toUpperCase();
+    const kelasInput = (r.kelas ?? '').trim().toUpperCase();
+    const kelas = kelasInput === '' ? KELAS_KOSONG : kelasInput;
     const angkatan = Number(r.angkatan ?? '');
     const dosenInput = r.dosen_pa ?? r.dosen ?? '';
     const dosen = resolveDosen(dosenInput);
@@ -352,7 +358,7 @@ function validateMahasiswa(
     else if (records[npm]) msg = 'NPM sudah terdaftar';
     else if (!nama) msg = 'Nama kosong';
     else if (!PRODI.includes(prodi)) msg = `Prodi harus ${PRODI.join('/')}`;
-    else if (!KELAS.includes(kelas)) msg = `Kelas harus ${KELAS.join('/')}`;
+    else if (kelas !== KELAS_KOSONG && !KELAS.includes(kelas)) msg = `Kelas harus ${KELAS.join('/')} atau dikosongkan`;
     else if (!Number.isInteger(angkatan) || angkatan < 2000 || angkatan > 2100) msg = 'Angkatan tidak valid';
     else if (dosen === undefined) msg = 'Dosen PA tidak dikenal / ambigu';
 
@@ -369,7 +375,7 @@ function validateMahasiswa(
 
     return {
       npm, nama: nama || '—', c3: prodi || '—',
-      c4: `${kelas || '—'} · ${r.angkatan || '—'}`,
+      c4: `${kelas === KELAS_KOSONG ? 'tanpa kelas' : kelas} · ${r.angkatan || '—'}`,
       c5: dosen ? dosen.nama : dosenInput ? dosenInput : 'belum diplot',
       valid: !msg, msg, payload,
       dosen: dosen ?? undefined,

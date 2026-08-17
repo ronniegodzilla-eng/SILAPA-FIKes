@@ -37,7 +37,7 @@ export function downloadTemplateMahasiswa(dosenList: DosenPaOption[]) {
   const data = XLSX.utils.aoa_to_sheet([
     ['npm', 'nama', 'prodi', 'angkatan', 'kelas', 'dosen_pa'],
     ['2610132410001', 'Contoh Mahasiswa Satu', 'K3', 2026, 'REG A', contohDosen],
-    ['2610132410002', 'Contoh Mahasiswa Dua', 'KL', 2026, 'REG B', ''],
+    ['2610132410002', 'Contoh Mahasiswa Dua', 'KL', 2026, '', ''],
   ]);
   data['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 32 }];
   forceTextColumn(data, 0, 1);
@@ -51,7 +51,7 @@ export function downloadTemplateMahasiswa(dosenList: DosenPaOption[]) {
     ['nama', 'WAJIB'],
     ['prodi', 'WAJIB — salah satu: K3, KL, S2KM'],
     ['angkatan', 'WAJIB — tahun 4 digit, mis. 2026'],
-    ['kelas', 'WAJIB — salah satu: REG A, REG B, REG C, REG D'],
+    ['kelas', 'OPSIONAL — REG A, REG B, REG C, atau REG D. Kosongkan bila mahasiswa tidak dibagi kelas (tercatat sebagai "-").'],
     ['dosen_pa', 'OPSIONAL — nama dosen sesuai sheet DAFTAR DOSEN PA (boleh tanpa gelar asal unik). Kosongkan bila belum diplot.'],
     [],
     ['Baris dengan NPM duplikat (di dalam file maupun yang sudah terdaftar) akan gagal validasi.'],
