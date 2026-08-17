@@ -120,6 +120,19 @@ export async function GET(req: NextRequest) {
         };
       });
 
+    // Nama Wakil Dekan I yang mengesahkan — diambil dari akun ber-peran
+    // wadek1 yang masih aktif, bukan ditulis tetap di kode (dulu masih
+    // memuat nama akun contoh yang sudah dinonaktifkan). Bila belum ada,
+    // dibiarkan kosong supaya dokumen tidak memuat nama karangan.
+    const wadekSnap = await db
+      .collection('users')
+      .where('roles', 'array-contains', 'wadek1')
+      .get();
+    const wadekNama =
+      (wadekSnap.docs
+        .map((d) => d.data() as any)
+        .find((u) => u.aktif !== false)?.nama as string | undefined) ?? '';
+
     // QR verifikasi + logo.
     const verifikasiKode = `SILAPA/${periodeId}/${sub.dosenUid}`.toUpperCase().slice(0, 48);
     const qrDataUrl = await QRCode.toDataURL(
@@ -136,6 +149,7 @@ export async function GET(req: NextRequest) {
         data: {
           dosenNama,
           dosenProdi: sub.prodi ?? '—',
+          wadekNama,
           periodeLabel,
           rows,
           qrDataUrl,

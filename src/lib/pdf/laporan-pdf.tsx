@@ -48,6 +48,10 @@ export interface PdfLaporanRow {
 export interface PdfLaporanData {
   dosenNama: string;
   dosenProdi: string;
+  /** Nama Wakil Dekan I yang mengesahkan — diambil dari akun ber-peran
+   * wadek1 yang aktif. Kosong bila belum ada, dan sengaja TIDAK diisi nama
+   * contoh: dokumen bertanda tangan tidak boleh memuat nama karangan. */
+  wadekNama?: string;
   periodeLabel: string;
   rows: PdfLaporanRow[];
   qrDataUrl: string;
@@ -58,8 +62,12 @@ export interface PdfLaporanData {
 
 const s = StyleSheet.create({
   page: { paddingTop: 36, paddingBottom: 48, paddingHorizontal: 42, fontSize: 8.5, fontFamily: 'Helvetica', color: '#1B241D' },
-  kop: { flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 2, borderBottomColor: '#0B6E3C', paddingBottom: 10, marginBottom: 14 },
-  kopText: { flex: 1 },
+  // Kop: logo dipaku di kiri secara absolut, teksnya rata tengah terhadap
+  // SELURUH lebar konten. Kalau logo ikut alur flex, "tengah" jadi tengahnya
+  // sisa ruang di sebelah logo — miring ke kanan, tidak sejajar isi halaman.
+  kop: { position: 'relative', justifyContent: 'center', minHeight: 54, borderBottomWidth: 2, borderBottomColor: '#0B6E3C', paddingBottom: 10, marginBottom: 14 },
+  kopLogo: { position: 'absolute', left: 0, top: 0, width: 54, height: 54 },
+  kopText: { textAlign: 'center' },
   univ: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#073B21' },
   fak: { fontSize: 10.5, marginTop: 1 },
   alamat: { fontSize: 7.5, color: '#5C6B60', marginTop: 2 },
@@ -114,7 +122,7 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
       <Page size="A4" orientation="landscape" style={s.page}>
         {/* Kop */}
         <View style={s.kop} fixed>
-          <Image src={data.logoDataUrl} style={{ width: 46, height: 46 }} />
+          <Image src={data.logoDataUrl} style={s.kopLogo} />
           <View style={s.kopText}>
             <Text style={s.univ}>UNIVERSITAS IBNU SINA</Text>
             <Text style={s.fak}>Fakultas Ilmu Kesehatan (FIKes)</Text>
@@ -251,7 +259,9 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
             <Text> </Text>
             <Text style={{ marginTop: 2 }}>Mengesahkan, Wakil Dekan I</Text>
             <View style={s.ttdSpace} />
-            <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>Dr. Hj. Ifadha Adiningsih, M.Kes.</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>
+              {data.wadekNama || '(  .....................................  )'}
+            </Text>
           </View>
         </View>
 
