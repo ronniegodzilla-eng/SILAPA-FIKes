@@ -15,6 +15,7 @@ import { computeSemesterKe, computeStatusPengisian, computeWadekAggregates, type
 import { SEMKES_MAX } from '../types';
 import type {
   DosenRosterEntry,
+  Prodi,
   MahasiswaRecord,
   SemkesEntry,
   Periode,
@@ -381,6 +382,97 @@ export async function markLaporanSubmitted(periodeId: string, dosenUid: string) 
   await batch.commit();
 }
 
+/**
+ * Pilihan dosen PA untuk plotting & import (admin).
+ *
+ * TIDAK boleh diambil dari `submissions` saja: roster itu hanya berisi dosen
+ * yang sudah punya dokumen submission di periode ini, dan submission baru
+ * dibuat saat periode dibuka. Akibatnya dosen PA yang baru didaftarkan admin
+ * di tengah periode tidak pernah muncul — tidak di template Excel, tidak di
+ * dropdown plotting — sehingga mahasiswa baru mustahil diplot kepadanya.
+ * Sumber kebenaran daftar dosen adalah koleksi `users` (peran dosen_pa);
+ * roster hanya menyumbang beban bimbingan yang sudah tercatat.
+ */
+export interface DosenPaOption {
+  dosenUid: string;
+  nama: string;
+  prodi: Prodi;
+  jumlah: number;
+  /** false = belum punya dokumen submissions di periode ini (dosen baru). */
+  adaRoster: boolean;
+}
+
+export async function fetchDosenPaOptions(periodeId: string): Promise<DosenPaOption[]> {
+  const [roster, users] = await Promise.all([fetchDosenRoster(periodeId), fetchAllUsers()]);
+  const byUid = new Map<string, DosenPaOption>();
+  roster.forEach((d) =>
+    byUid.set(d.dosenUid, {
+      dosenUid: d.dosenUid,
+      nama: d.nama,
+      prodi: d.prodi,
+      jumlah: d.jumlah ?? 0,
+      adaRoster: true,
+    })
+  );
+  users
+    .filter((u) => (u.roles ?? []).includes('dosen_pa') && u.aktif !== false)
+    .forEach((u) => {
+      const existing = byUid.get(u.uid);
+      if (existing) {
+        // Nama akun adalah yang terbaru (bisa diubah lewat Edit Profil).
+        existing.nama = u.nama || existing.nama;
+        return;
+      }
+      byUid.set(u.uid, {
+        dosenUid: u.uid,
+        nama: u.nama,
+        prodi: (u.prodiHomebase ?? 'K3') as Prodi,
+        jumlah: 0,
+        adaRoster: false,
+      });
+    });
+  return Array.from(byUid.values()).sort((a, b) => a.nama.localeCompare(b.nama));
+}
+
+/**
+ * Tambah `delta` ke beban bimbingan dosen, DAN buat dokumen submissions-nya
+ * bila belum ada (dosen baru yang belum pernah ikut periode mana pun).
+ * updateSubmissionJumlah di bawah diam-diam tidak melakukan apa pun untuk
+ * dosen seperti itu, sehingga mahasiswa hasil import tidak pernah muncul di
+ * dashboard dosen maupun di verifikasi Wakil Dekan.
+ */
+export async function upsertSubmissionJumlah(
+  periodeId: string,
+  dosen: { dosenUid: string; nama: string; prodi: Prodi },
+  delta: number
+) {
+  const db = getDbOrThrow();
+  const snap = await getDocs(
+    query(
+      collection(db, 'submissions'),
+      where('periodeId', '==', periodeId),
+      where('dosenUid', '==', dosen.dosenUid)
+    )
+  );
+  if (!snap.empty) {
+    await Promise.all(
+      snap.docs.map((d) =>
+        updateDoc(d.ref, { jumlah: ((d.data() as any).jumlah ?? 0) + delta })
+      )
+    );
+    return;
+  }
+  await setDoc(doc(db, 'submissions', `${periodeId}_${dosen.dosenUid}`), {
+    periodeId,
+    dosenUid: dosen.dosenUid,
+    nama: dosen.nama,
+    prodi: dosen.prodi,
+    jumlah: delta,
+    status: 'draft',
+    catatanWadek: '',
+  });
+}
+
 export async function updateSubmissionJumlah(
   periodeId: string,
   dosenNama: string,
@@ -671,6 +763,16 @@ export async function bukaPeriodeGenerate(periode: {
     if (!prev || String(s.periodeId).localeCompare(String(prev.periodeId)) > 0) {
       latestByDosen.set(s.dosenUid, s);
     }
+  });
+  // Roster lama saja tidak cukup: dosen PA yang baru didaftarkan admin belum
+  // pernah punya submission, jadi tanpa ini dia tetap tak terlihat di periode
+  // baru pun — tidak bisa diplot, laporannya tidak pernah diminta.
+  const usersSnap = await getDocs(collection(db, 'users'));
+  usersSnap.docs.forEach((d) => {
+    const u = d.data() as any;
+    if (!(u.roles ?? []).includes('dosen_pa') || u.aktif === false) return;
+    if (latestByDosen.has(d.id)) return;
+    latestByDosen.set(d.id, { nama: u.nama, prodi: u.prodiHomebase ?? 'K3', jumlah: 0 });
   });
   latestByDosen.forEach((s, dosenUid) => {
     batch.set(doc(db, 'submissions', `${periode.id}_${dosenUid}`), {

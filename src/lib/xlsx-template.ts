@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import type { DosenRosterEntry, MahasiswaRecord } from './types';
+import type { DosenPaOption } from './firestore/data';
+import type { MahasiswaRecord } from './types';
 
 /**
  * Client-side .xlsx template generators. Every NPM cell is forced to TEXT
@@ -21,13 +22,21 @@ function forceTextColumn(sheet: XLSX.WorkSheet, colIdx: number, fromRow: number)
   }
 }
 
-/** Template A2 (admin): mahasiswa baru + plotting dosen PA. */
-export function downloadTemplateMahasiswa(dosenRoster: DosenRosterEntry[]) {
+/**
+ * Template A2 (admin): mahasiswa baru + plotting dosen PA.
+ *
+ * `dosenList` harus datang dari dosenPaOptions (roster + akun ber-peran
+ * dosen_pa), BUKAN dari dosenRoster saja — dosen yang baru didaftarkan belum
+ * punya dokumen submissions, dan dulu karena itu tidak pernah ikut tercetak di
+ * sheet DAFTAR DOSEN PA sehingga tidak bisa dipakai untuk plotting.
+ */
+export function downloadTemplateMahasiswa(dosenList: DosenPaOption[]) {
   const wb = XLSX.utils.book_new();
 
+  const contohDosen = dosenList[0]?.nama ?? '(salin dari sheet DAFTAR DOSEN PA)';
   const data = XLSX.utils.aoa_to_sheet([
     ['npm', 'nama', 'prodi', 'angkatan', 'kelas', 'dosen_pa'],
-    ['2610132410001', 'Contoh Mahasiswa Satu', 'K3', 2026, 'REG A', dosenRoster[0]?.nama ?? 'Roni Saputra, M.Si.'],
+    ['2610132410001', 'Contoh Mahasiswa Satu', 'K3', 2026, 'REG A', contohDosen],
     ['2610132410002', 'Contoh Mahasiswa Dua', 'KL', 2026, 'REG B', ''],
   ]);
   data['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 32 }];
@@ -46,6 +55,7 @@ export function downloadTemplateMahasiswa(dosenRoster: DosenRosterEntry[]) {
     ['dosen_pa', 'OPSIONAL — nama dosen sesuai sheet DAFTAR DOSEN PA (boleh tanpa gelar asal unik). Kosongkan bila belum diplot.'],
     [],
     ['Baris dengan NPM duplikat (di dalam file maupun yang sudah terdaftar) akan gagal validasi.'],
+    ['Dosen PA yang baru didaftarkan admin ikut tercantum di sheet DAFTAR DOSEN PA meski belum punya bimbingan.'],
   ]);
   petunjuk['!cols'] = [{ wch: 12 }, { wch: 90 }];
   XLSX.utils.book_append_sheet(wb, petunjuk, 'PETUNJUK');
@@ -53,10 +63,14 @@ export function downloadTemplateMahasiswa(dosenRoster: DosenRosterEntry[]) {
   const dosen = XLSX.utils.aoa_to_sheet([
     ['DAFTAR DOSEN PA (salin persis ke kolom dosen_pa)'],
     [],
-    ['Nama', 'Prodi Homebase'],
-    ...dosenRoster.map((d) => [d.nama, d.prodi]),
+    ['Nama', 'Prodi Homebase', 'Bimbingan Saat Ini'],
+    ...dosenList.map((d) => [
+      d.nama,
+      d.prodi,
+      d.adaRoster ? d.jumlah : 'baru — belum ada bimbingan',
+    ]),
   ]);
-  dosen['!cols'] = [{ wch: 34 }, { wch: 16 }];
+  dosen['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 26 }];
   XLSX.utils.book_append_sheet(wb, dosen, 'DAFTAR DOSEN PA');
 
   XLSX.writeFile(wb, 'template_mahasiswa_plotting.xlsx');

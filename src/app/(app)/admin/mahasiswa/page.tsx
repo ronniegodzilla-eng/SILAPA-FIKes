@@ -24,8 +24,10 @@ interface Draft {
 }
 
 export default function MasterMahasiswaPage() {
-  const { recordList, dosenRoster, addMahasiswa, editMahasiswaMaster, toggleNonaktif } = useData();
-  const namaByUid = new Map(dosenRoster.map((d) => [d.dosenUid, d.nama]));
+  const { recordList, dosenPaOptions, addMahasiswa, editMahasiswaMaster, toggleNonaktif } = useData();
+  // dosenPaOptions, bukan dosenRoster: mahasiswa yang diplot ke dosen yang
+  // baru didaftarkan akan tampil "belum diplot" bila hanya roster yang dipakai.
+  const namaByUid = new Map(dosenPaOptions.map((d) => [d.dosenUid, d.nama]));
   const [search, setSearch] = useState('');
   const [filterProdi, setFilterProdi] = useState('semua');
   const [mode, setMode] = useState<'add' | 'edit' | null>(null);

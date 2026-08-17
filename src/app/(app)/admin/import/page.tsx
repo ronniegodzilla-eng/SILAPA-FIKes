@@ -2,13 +2,13 @@
 
 import { useRef, useState } from 'react';
 import { useData } from '@/lib/data-context';
-import { updateSubmissionJumlah } from '@/lib/firestore/data';
+import { upsertSubmissionJumlah, type DosenPaOption } from '@/lib/firestore/data';
 import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateMahasiswa, downloadTemplateNilai } from '@/lib/xlsx-template';
 import { colors } from '@/lib/theme';
 import { Icon, Card } from '@/components/ui';
 import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
-import type { DosenRosterEntry, MahasiswaRecord } from '@/lib/types';
+import type { MahasiswaRecord } from '@/lib/types';
 
 type SortKey = 'npm' | 'nama' | 'c3' | 'c4' | 'c5' | 'valid';
 
@@ -24,7 +24,7 @@ interface PreviewRow {
   valid: boolean;
   msg: string;
   payload?: any;
-  dosenNama?: string; // resolved roster name for plotting count updates
+  dosen?: DosenPaOption; // dosen PA hasil pencocokan, utk update beban bimbingan
 }
 
 const TH: React.CSSProperties = {
@@ -49,7 +49,7 @@ function missingColumns(mode: Mode, sample: Record<string, string>): string[] {
 }
 
 export default function ImportPage() {
-  const { records, dosenRoster, periode, importNilai, addMahasiswa, reload } = useData();
+  const { records, dosenPaOptions, periode, importNilai, addMahasiswa, reload } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<Mode>('nilai');
   const [stage, setStage] = useState<Stage>('idle');
@@ -101,7 +101,7 @@ export default function ImportPage() {
       setRows(
         mode === 'nilai'
           ? validateNilai(mapped, records)
-          : validateMahasiswa(mapped, records, dosenRoster)
+          : validateMahasiswa(mapped, records, dosenPaOptions)
       );
       setFileName(file.name);
       setStage('preview');
@@ -121,17 +121,23 @@ export default function ImportPage() {
         for (const r of valid) await addMahasiswa(r.payload as MahasiswaRecord);
         // Plotting sekaligus: update jumlah bimbingan per dosen di distribusi.
         if (periode) {
-          const perDosen = new Map<string, number>();
+          // upsert, bukan update: dosen yang baru didaftarkan belum punya
+          // dokumen submissions, dan tanpa itu mahasiswa hasil import tidak
+          // pernah muncul di dashboard dosen maupun verifikasi Wakil Dekan.
+          const perDosen = new Map<string, { dosen: DosenPaOption; n: number }>();
           valid.forEach((r) => {
-            if (r.dosenNama) perDosen.set(r.dosenNama, (perDosen.get(r.dosenNama) ?? 0) + 1);
+            if (!r.dosen) return;
+            const cur = perDosen.get(r.dosen.dosenUid);
+            if (cur) cur.n += 1;
+            else perDosen.set(r.dosen.dosenUid, { dosen: r.dosen, n: 1 });
           });
           await Promise.all(
-            Array.from(perDosen.entries()).map(([nama, n]) =>
-              updateSubmissionJumlah(periode.id, nama, n)
+            Array.from(perDosen.values()).map(({ dosen, n }) =>
+              upsertSubmissionJumlah(periode.id, dosen, n)
             )
           );
         }
-        const plotted = valid.filter((r) => r.dosenNama).length;
+        const plotted = valid.filter((r) => r.dosen).length;
         setDoneMsg(
           `${valid.length} mahasiswa baru berhasil ditambahkan` +
             (plotted ? `, ${plotted} langsung terplot ke dosen PA.` : '.')
@@ -165,7 +171,7 @@ export default function ImportPage() {
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <button
-            onClick={() => (mode === 'nilai' ? downloadTemplateNilai() : downloadTemplateMahasiswa(dosenRoster))}
+            onClick={() => (mode === 'nilai' ? downloadTemplateNilai() : downloadTemplateMahasiswa(dosenPaOptions))}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12.5, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}
           >
             <Icon path="M12 4v12 M7 11l5 5 5-5 M4 20h16" size={15} />
@@ -314,17 +320,17 @@ function validateNilai(
 function validateMahasiswa(
   raw: Record<string, string>[],
   records: Record<string, MahasiswaRecord>,
-  dosenRoster: DosenRosterEntry[]
+  dosenList: DosenPaOption[]
 ): PreviewRow[] {
-  // dosen_pa dicocokkan ke roster berdasarkan nama, case-insensitive; gelar
-  // boleh dihilangkan asal awalan nama cocok unik.
+  // dosen_pa dicocokkan ke daftar dosen berdasarkan nama, case-insensitive;
+  // gelar boleh dihilangkan asal awalan nama cocok unik.
   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-  function resolveDosen(input: string): DosenRosterEntry | null | undefined {
+  function resolveDosen(input: string): DosenPaOption | null | undefined {
     if (!input) return null; // kosong = belum diplot (valid)
     const q2 = norm(input);
-    const exact = dosenRoster.find((d) => norm(d.nama) === q2);
+    const exact = dosenList.find((d) => norm(d.nama) === q2);
     if (exact) return exact;
-    const prefix = dosenRoster.filter((d) => norm(d.nama).startsWith(q2));
+    const prefix = dosenList.filter((d) => norm(d.nama).startsWith(q2));
     return prefix.length === 1 ? prefix[0] : undefined; // undefined = tak dikenal/ambigu
   }
 
@@ -366,7 +372,7 @@ function validateMahasiswa(
       c4: `${kelas || '—'} · ${r.angkatan || '—'}`,
       c5: dosen ? dosen.nama : dosenInput ? dosenInput : 'belum diplot',
       valid: !msg, msg, payload,
-      dosenNama: dosen ? dosen.nama : undefined,
+      dosen: dosen ?? undefined,
     };
   });
 }

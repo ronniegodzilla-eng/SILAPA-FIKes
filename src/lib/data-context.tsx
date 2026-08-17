@@ -31,6 +31,10 @@ interface DataContextValue {
   records: Record<string, MahasiswaRecord>;
   recordList: MahasiswaRecord[];
   dosenRoster: DosenRosterEntry[];
+  /** Semua dosen PA yang boleh dijadikan tujuan plotting — roster periode ini
+   * DITAMBAH akun ber-peran dosen_pa yang belum punya submission (dosen baru).
+   * Hanya diisi untuk admin; peran lain tidak boleh membaca koleksi users. */
+  dosenPaOptions: data.DosenPaOption[];
   saveStatus: SaveStatus;
 
   updateField: (npm: string, path: string, value: unknown) => void;
@@ -78,6 +82,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [periodeHistory, setPeriodeHistory] = useState<PeriodeHistoryEntry[]>([]);
   const [records, setRecords] = useState<Record<string, MahasiswaRecord>>({});
   const [dosenRoster, setDosenRoster] = useState<DosenRosterEntry[]>([]);
+  const [dosenPaOptions, setDosenPaOptions] = useState<data.DosenPaOption[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   // Autosave (PRD §5.1, §8): debounce per field, retry dengan backoff, dan
   // status 'error' yang terlihat bila tetap gagal — data tidak boleh hilang
@@ -107,6 +112,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ]);
       setPeriodeHistory(hist);
       setDosenRoster(roster);
+      // Daftar tujuan plotting menggabungkan roster dengan koleksi `users`,
+      // yang hanya boleh dibaca admin/wadek — dan hanya admin yang memplot.
+      setDosenPaOptions(p && activeRole === 'admin' ? await data.fetchDosenPaOptions(p.id) : []);
 
       let recs: MahasiswaRecord[] = [];
       if (p) {
@@ -286,15 +294,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deltaByUid.set(targetDosenUid, (deltaByUid.get(targetDosenUid) ?? 0) + npms.length);
 
       await data.movePlottingMahasiswa(periode.id, npms, targetDosenUid, alsoCurrentLaporan);
+      // Dipetakan lewat dosenPaOptions, bukan dosenRoster: dosen tujuan bisa
+      // saja belum punya dokumen submissions (baru didaftarkan admin), dan
+      // upsert-lah yang membuatkannya — kalau tidak, mahasiswa yang dipindah
+      // tak pernah tampil di dashboard dosen itu.
       await Promise.all(
-        dosenRoster
-          .filter((d) => deltaByUid.has(d.dosenUid) && deltaByUid.get(d.dosenUid) !== 0)
-          .map((d) => data.updateSubmissionJumlah(periode.id, d.nama, deltaByUid.get(d.dosenUid)!))
+        dosenPaOptions
+          .filter((d) => (deltaByUid.get(d.dosenUid) ?? 0) !== 0)
+          .map((d) => data.upsertSubmissionJumlah(periode.id, d, deltaByUid.get(d.dosenUid)!))
       );
       setDosenRoster((prev) =>
         prev.map((d) =>
           deltaByUid.has(d.dosenUid)
             ? { ...d, jumlah: d.jumlah + (deltaByUid.get(d.dosenUid) ?? 0) }
+            : d
+        )
+      );
+      setDosenPaOptions((prev) =>
+        prev.map((d) =>
+          deltaByUid.has(d.dosenUid)
+            ? {
+                ...d,
+                jumlah: d.jumlah + (deltaByUid.get(d.dosenUid) ?? 0),
+                adaRoster: d.adaRoster || d.dosenUid === targetDosenUid,
+              }
             : d
         )
       );
@@ -306,7 +329,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return next;
       });
     },
-    [periode, records, dosenRoster]
+    [periode, records, dosenPaOptions]
   );
 
   const bukaPeriode = useCallback(async () => {
@@ -365,6 +388,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         records,
         recordList,
         dosenRoster,
+        dosenPaOptions,
         saveStatus,
         updateField,
         addMahasiswa,

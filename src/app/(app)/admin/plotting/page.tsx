@@ -18,7 +18,7 @@ const selStyle: React.CSSProperties = {
 };
 
 export default function PlottingPage() {
-  const { recordList, dosenRoster, movePlotting } = useData();
+  const { recordList, dosenPaOptions, movePlotting } = useData();
 
   // per-mahasiswa move
   const [selectedNpm, setSelectedNpm] = useState('');
@@ -34,7 +34,12 @@ export default function PlottingPage() {
   const [bulkTargetUid, setBulkTargetUid] = useState('');
   const [bulkToast, setBulkToast] = useState('');
 
-  const namaByUid = useMemo(() => new Map(dosenRoster.map((d) => [d.dosenUid, d.nama])), [dosenRoster]);
+  // Nama dipetakan dari dosenPaOptions supaya mahasiswa yang sudah diplot ke
+  // dosen baru (belum punya submission) tidak tampil "belum diplot".
+  const namaByUid = useMemo(
+    () => new Map(dosenPaOptions.map((d) => [d.dosenUid, d.nama])),
+    [dosenPaOptions]
+  );
   const angkatanOptions = useMemo(
     () => Array.from(new Set(recordList.map((m) => m.angkatan))).sort(),
     [recordList]
@@ -50,13 +55,15 @@ export default function PlottingPage() {
 
   const canMove = !!selectedNpm && !!targetUid;
   const canBulk = bulkFiltered && bulkMatches.length > 0 && !!bulkTargetUid;
-  const total = dosenRoster.reduce((sum, d) => sum + d.jumlah, 0);
+  const total = dosenPaOptions.reduce((sum, d) => sum + d.jumlah, 0);
 
   // Tabel ringkasan beban bimbingan per dosen.
   const sort = useTableSort<SortKey>();
   const [rosterQ, setRosterQ] = useState('');
   const rosterNeedle = rosterQ.trim().toLowerCase();
-  const rosterFiltered = dosenRoster.filter((d) => !rosterNeedle || d.nama.toLowerCase().includes(rosterNeedle));
+  // Tabel beban dibangun dari dosenPaOptions agar dosen yang baru didaftarkan
+  // tetap terlihat (dengan 0 bimbingan) alih-alih hilang sama sekali.
+  const rosterFiltered = dosenPaOptions.filter((d) => !rosterNeedle || d.nama.toLowerCase().includes(rosterNeedle));
   const rosterPage = usePagination(sort.sortRows(rosterFiltered, (d, key) => d[key]), undefined, sort.sortSig);
 
   async function moveSingle() {
@@ -105,8 +112,10 @@ export default function PlottingPage() {
             <label style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, display: 'block', marginBottom: 6 }}>Dosen PA tujuan</label>
             <select value={targetUid} onChange={(e) => setTargetUid(e.target.value)} style={selStyle}>
               <option value="">Pilih dosen...</option>
-              {dosenRoster.map((d) => (
-                <option key={d.dosenUid} value={d.dosenUid}>{d.nama}</option>
+              {dosenPaOptions.map((d) => (
+                <option key={d.dosenUid} value={d.dosenUid}>
+                  {d.nama}{d.adaRoster ? '' : ' — dosen baru'}
+                </option>
               ))}
             </select>
           </div>
@@ -148,8 +157,10 @@ export default function PlottingPage() {
             <label style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, display: 'block', marginBottom: 6 }}>Dosen PA tujuan</label>
             <select value={bulkTargetUid} onChange={(e) => setBulkTargetUid(e.target.value)} style={selStyle}>
               <option value="">Pilih dosen...</option>
-              {dosenRoster.map((d) => (
-                <option key={d.dosenUid} value={d.dosenUid}>{d.nama}</option>
+              {dosenPaOptions.map((d) => (
+                <option key={d.dosenUid} value={d.dosenUid}>
+                  {d.nama}{d.adaRoster ? '' : ' — dosen baru'}
+                </option>
               ))}
             </select>
           </div>
@@ -178,7 +189,7 @@ export default function PlottingPage() {
               <tr><td colSpan={3} style={{ padding: '14px 16px', fontSize: 12.5, color: colors.faint }}>Tidak ada dosen yang cocok dengan pencarian.</td></tr>
             )}
             {rosterPage.pageRows.map((d) => (
-              <tr key={d.nama} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
+              <tr key={d.dosenUid} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
                 <td style={{ padding: '11px 16px', fontSize: 13.5, fontWeight: 600, color: colors.ink }}>{d.nama}</td>
                 <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{d.prodi}</td>
                 <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink, fontWeight: 700 }}>{d.jumlah}</td>
