@@ -103,6 +103,23 @@ function findUnknownKeys(patch: any): string[] {
   return bad;
 }
 
+/**
+ * Pengunduran diri menutup jalur isi-data mandiri. Selama menunggu keputusan
+ * Wakil Dekan I data tidak boleh berubah — kalau ditolak, statusnya dipulihkan
+ * ke kondisi saat diajukan, jadi suntingan di sela-sela itu justru menyesatkan.
+ * Setelah disetujui, mahasiswanya sudah bukan bimbingan aktif sama sekali.
+ * Mengembalikan pesan penolakan, atau '' bila boleh lanjut.
+ */
+function pesanUndurDiri(master: any, laporan: any): string {
+  if (master?.mengundurkanDiri === true) {
+    return 'Data Anda sudah ditutup karena pengunduran diri telah disahkan Wakil Dekan I. Hubungi dosen PA Anda bila ini keliru.';
+  }
+  if (laporan?.pengunduran?.status === 'diajukan') {
+    return 'Pengajuan pengunduran diri Anda sedang menunggu validasi Wakil Dekan I — data tidak dapat diubah dulu. Hubungi dosen PA Anda bila ini keliru.';
+  }
+  return '';
+}
+
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token');
   const npm = req.nextUrl.searchParams.get('npm');
@@ -117,6 +134,9 @@ export async function GET(req: NextRequest) {
     const snap = await db.collection('mahasiswa').where('dosenPaUid', '==', ctx.dosenUid).get();
     const mahasiswa = snap.docs
       .map((d) => d.data() as any)
+      // Yang pengunduran dirinya sudah disahkan Wakil Dekan I tidak lagi
+      // muncul di daftar pilihan: ia bukan mahasiswa aktif dosen ini lagi.
+      .filter((m) => m.mengundurkanDiri !== true)
       .map((m) => ({ npm: String(m.npm), nama: m.nama as string }))
       .sort((a, b) => a.nama.localeCompare(b.nama));
     return Response.json({ dosenNama: ctx.dosenNama, periodeLabel: ctx.periodeLabel, mahasiswa });
@@ -131,6 +151,8 @@ export async function GET(req: NextRequest) {
   const laporanSnap = await db.doc(`laporan/${ctx.periodeId}_${npm}`).get();
   const laporan = laporanSnap.exists ? (laporanSnap.data() as any) : null;
   if (!laporan) return new Response('Laporan periode ini belum tersedia untuk mahasiswa ini.', { status: 404 });
+  const tolakUndurDiri = pesanUndurDiri(master, laporan);
+  if (tolakUndurDiri) return new Response(tolakUndurDiri, { status: 423 });
 
   return Response.json({
     identitas: { npm: String(master.npm), nama: master.nama, prodi: master.prodi, angkatan: master.angkatan, kelas: master.kelas },
@@ -212,6 +234,9 @@ export async function POST(req: NextRequest) {
   // pun yang memegang link bisa menimpa data temannya. Kunci dipasang otomatis
   // di akhir fungsi ini begitu simpan pertama berhasil; hanya dosen PA yang
   // dapat membukanya kembali lewat form-nya.
+  const tolakUndurDiri = pesanUndurDiri(master, laporan);
+  if (tolakUndurDiri) return new Response(tolakUndurDiri, { status: 423 });
+
   if (laporan.dikunciMandiri) {
     return new Response(
       'Data Anda sudah tersimpan dan dikunci. Bila masih perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.',

@@ -12,7 +12,9 @@ export function konsultasiJenisLabel(entry: KonsultasiEntry): string {
  * active records need academic data + a recommendation to be "lengkap".
  */
 export function computeStatusPengisian(rec: MahasiswaRecord): MahasiswaRecord['statusPengisian'] {
-  if (rec.status === 'cuti' || rec.status === 'non_aktif') {
+  // 'mengundurkan_diri' diperlakukan sama seperti cuti/non-aktif: mahasiswanya
+  // sudah tidak berkuliah, jadi yang dibutuhkan hanya narasi — bukan KRS/KHS.
+  if (rec.status === 'cuti' || rec.status === 'non_aktif' || rec.status === 'mengundurkan_diri') {
     return rec.permasalahan && rec.permasalahan.trim() ? 'lengkap' : 'kosong';
   }
   const a = rec.akademik;
@@ -143,7 +145,9 @@ export function computeDosenRekap(list: MahasiswaRecord[]): DosenRekap {
     organisasi: list.filter((m) => m.nonAkademik.ukm || m.nonAkademik.hima || m.nonAkademik.bem).length,
     beasiswa: list.filter((m) => m.nonAkademik.beasiswa.ada).length,
     prestasi: list.filter((m) => m.nonAkademik.prestasi.ada).length,
-    cutiNonaktif: list.filter((m) => m.status === 'cuti' || m.status === 'non_aktif').length,
+    cutiNonaktif: list.filter(
+      (m) => m.status === 'cuti' || m.status === 'non_aktif' || m.status === 'mengundurkan_diri'
+    ).length,
     perhatian: list.filter(needsAttention).length,
   };
 }
@@ -164,7 +168,16 @@ export function computeSemesterKe(
 // Every number is computed from laporan records — never entered manually.
 
 export interface WadekAggregates {
-  status: { aktif: number; cuti: number; nonAktif: number; lulus: number };
+  status: {
+    aktif: number;
+    cuti: number;
+    nonAktif: number;
+    lulus: number;
+    /** Pengajuan pengunduran diri yang masih menunggu keputusan Wakil Dekan I.
+     * Opsional: rekapCache yang tersimpan sebelum fitur ini ada tidak punya
+     * angka tersebut, dan pembacanya harus tahan terhadap itu. */
+    mengundurkanDiri?: number;
+  };
   prodiIpk: { prodi: string; rata: string; n: number }[];
   nonAkademik: { organisasi: number; beasiswa: number; prestasi: number };
   masterField: { pkkmb: string; toefl: string; esq: string; semkes: string };
@@ -268,6 +281,8 @@ export function computeWadekAggregates(
       cuti: count((m) => m.status === 'cuti'),
       nonAktif: count((m) => m.status === 'non_aktif'),
       lulus: count((m) => m.status === 'lulus'),
+      /** Pengajuan pengunduran diri yang masih menunggu keputusan Wakil Dekan I. */
+      mengundurkanDiri: count((m) => m.status === 'mengundurkan_diri'),
     },
     prodiIpk,
     nonAkademik: {

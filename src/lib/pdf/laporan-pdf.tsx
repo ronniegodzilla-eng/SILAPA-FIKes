@@ -115,7 +115,12 @@ function CellText({ style, bukti, children }: { style: any; bukti?: string; chil
 
 export function LaporanPdf({ data }: { data: PdfLaporanData }) {
   const aktif = data.rows.filter((r) => r.status === 'aktif' || r.status === 'lulus');
-  const nonAktif = data.rows.filter((r) => r.status === 'cuti' || r.status === 'non_aktif');
+  // Pengunduran diri yang masih menunggu validasi Wakil Dekan I ikut di bagian
+  // C: mahasiswanya sudah tidak berkuliah, dan laporan yang dicetak harus
+  // menunjukkan itu apa adanya — termasuk bahwa keputusannya belum turun.
+  const nonAktif = data.rows.filter(
+    (r) => r.status === 'cuti' || r.status === 'non_aktif' || r.status === 'mengundurkan_diri'
+  );
 
   return (
     <Document title={`Laporan PA — ${data.dosenNama}`} author="SILAPA-FIKes">
@@ -207,7 +212,7 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
 
         {/* C. Non-Aktif / Cuti */}
         <Text style={s.section}>
-          C. NON-AKTIF / CUTI{'   '}
+          C. NON-AKTIF / CUTI / MENGUNDURKAN DIRI{'   '}
           <Text style={{ fontFamily: 'Helvetica', fontSize: 7, color: '#5C6B60' }}>
             (Rek. DO = direkomendasikan dosen PA untuk drop out; hanya berlaku bagi mahasiswa non-aktif)
           </Text>
@@ -224,7 +229,7 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
           </View>
           {nonAktif.length === 0 ? (
             <View style={s.tr}>
-              <Text style={[s.td, cW(100), s.center, { color: '#93A398' }]}>Tidak ada mahasiswa non-aktif/cuti pada periode ini.</Text>
+              <Text style={[s.td, cW(100), s.center, { color: '#93A398' }]}>Tidak ada mahasiswa non-aktif/cuti/mengundurkan diri pada periode ini.</Text>
             </View>
           ) : (
             nonAktif.map((r, i) => (
@@ -232,7 +237,13 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
                 <Text style={[s.td, cW(4), s.center]}>{i + 1}</Text>
                 <Text style={[s.td, cW(13)]}>{r.npm}</Text>
                 <Text style={[s.td, cW(18)]}>{r.nama}</Text>
-                <Text style={[s.td, cW(9), s.center]}>{r.status === 'cuti' ? 'Cuti' : 'Non-aktif'}</Text>
+                <Text style={[s.td, cW(9), s.center]}>
+                  {r.status === 'cuti'
+                    ? 'Cuti'
+                    : r.status === 'mengundurkan_diri'
+                      ? 'Undur diri (proses WD1)'
+                      : 'Non-aktif'}
+                </Text>
                 <Text style={[s.td, cW(8), s.center, r.rekomendasiDO ? { color: '#B0453A', fontFamily: 'Helvetica-Bold' } : {}]}>
                   {r.rekomendasiDO ? 'YA' : '—'}
                 </Text>

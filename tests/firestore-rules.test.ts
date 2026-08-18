@@ -86,7 +86,9 @@ async function main() {
     firestore: {
       rules: readFileSync('firestore.rules', 'utf8'),
       host: '127.0.0.1',
-      port: 8080,
+      // Bisa ditimpa lewat FIRESTORE_EMULATOR_PORT — di mesin dev sering ada
+      // emulator proyek lain yang sudah memegang 8080.
+      port: Number(process.env.FIRESTORE_EMULATOR_PORT ?? 8080),
     },
   });
 
@@ -118,8 +120,15 @@ async function main() {
   await check('wadek tulis periode → allow', () => assertSucceeds(updateDoc(doc(wadek, 'periode/write-test'), { status: 'dikunci' })));
 
   console.log('\nmahasiswa/{npm}');
-  await check('dosen create mahasiswa baru → deny', () =>
-    assertFails(setDoc(doc(dosenA, 'mahasiswa/9999'), { npm: '9999', nama: 'Baru', dosenPaUid: 'dosenA' })));
+  // Sejak fitur "Tambah Mahasiswa" di daftar bimbingan, dosen BOLEH membuat
+  // mahasiswa baru — tapi hanya yang diplot ke dirinya sendiri dan hanya
+  // dengan field identitas yang dikenal.
+  await check('dosen create mahasiswa baru utk dirinya sendiri → allow', () =>
+    assertSucceeds(setDoc(doc(dosenA, 'mahasiswa/9999'), { npm: '9999', nama: 'Baru', prodi: 'K3', angkatan: 2026, kelas: 'REG A', dosenPaUid: 'dosenA' })));
+  await check('dosen create mahasiswa diplot ke dosen LAIN → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'mahasiswa/9998'), { npm: '9998', nama: 'Baru', prodi: 'K3', angkatan: 2026, kelas: 'REG A', dosenPaUid: 'dosenB' })));
+  await check('dosen create mahasiswa dengan field di luar daftar → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'mahasiswa/9997'), { npm: '9997', nama: 'Baru', dosenPaUid: 'dosenA', statusGlobal: 'lulus' })));
   await check('admin create mahasiswa baru → allow', () =>
     assertSucceeds(setDoc(doc(admin, 'mahasiswa/9999'), { npm: '9999', nama: 'Baru', dosenPaUid: 'dosenA' })));
   await check('dosen delete mahasiswa → deny', () => assertFails(deleteDoc(doc(dosenA, 'mahasiswa/1001'))));
@@ -141,8 +150,12 @@ async function main() {
   await check('dosen BUKAN pemilik baca laporan → deny', () => assertFails(getDocFromServer(doc(dosenB, 'laporan/2025-genap_1001'))));
   await check('dosen pemilik baca laporannya → allow', () => assertSucceeds(getDocFromServer(doc(dosenA, 'laporan/2025-genap_1001'))));
   await check('wadek baca laporan siapa pun → allow', () => assertSucceeds(getDocFromServer(doc(wadek, 'laporan/2025-genap_1001'))));
-  await check('dosen create laporan → deny', () =>
-    assertFails(setDoc(doc(dosenA, 'laporan/2025-genap_9002'), { periodeId: '2025-genap', npm: '9002', dosenPaUid: 'dosenA', status: 'aktif', akademik: emptyAkademik })));
+  // Menyertai create mahasiswa di atas: dosen membuat laporan periode berjalan
+  // untuk mahasiswa barunya sendiri, dalam bentuk yang dibatasi.
+  await check('dosen create laporan utk bimbingannya sendiri → allow', () =>
+    assertSucceeds(setDoc(doc(dosenA, 'laporan/2025-genap_9003'), { periodeId: '2025-genap', npm: '9003', dosenPaUid: 'dosenA', status: 'aktif', akademik: emptyAkademik })));
+  await check('dosen create laporan utk dosen LAIN → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'laporan/2025-genap_9004'), { periodeId: '2025-genap', npm: '9004', dosenPaUid: 'dosenB', status: 'aktif', akademik: emptyAkademik })));
   await check('admin create laporan → allow', () =>
     assertSucceeds(setDoc(doc(admin, 'laporan/2025-genap_9002'), { periodeId: '2025-genap', npm: '9002', dosenPaUid: 'dosenA', status: 'aktif', akademik: emptyAkademik })));
   await check('dosen BUKAN pemilik update laporan → deny', () =>
@@ -156,6 +169,44 @@ async function main() {
   await check('dosen pemilik update IPK valid (3.5) di periode terbuka → allow', () =>
     assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { akademik: { ...emptyAkademik, sksKrs: 20, ipKhs: 3.5 } })));
   await check('dosen delete laporan → deny', () => assertFails(deleteDoc(doc(dosenA, 'laporan/2025-genap_1001'))));
+
+  // ── Pengunduran diri: klien hanya boleh MENGAJUKAN ────────────────────
+  // Kalau penjaga ini jebol, seorang dosen PA bisa meloloskan pengajuannya
+  // sendiri dan mengeluarkan mahasiswa dari daftar bimbingannya tanpa
+  // sepengetahuan Wakil Dekan I.
+  const pengajuan = {
+    status: 'diajukan',
+    statusSebelum: 'aktif',
+    alasan: 'Surat pengunduran diri tertanggal 1 Agustus.',
+    diajukanOlehUid: 'dosenA',
+    diajukanOlehNama: 'Dosen A',
+  };
+  await check('dosen pemilik AJUKAN pengunduran diri → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), {
+      status: 'mengundurkan_diri', pengunduran: pengajuan })));
+  await check('dosen SETUJUI pengunduran dirinya sendiri → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), {
+      status: 'non_aktif', pengunduran: { ...pengajuan, status: 'disetujui' } })));
+  await check('admin setujui pengunduran diri → deny (wewenang WD1)', () =>
+    assertFails(updateDoc(doc(admin, 'laporan/2025-genap_1001'), {
+      pengunduran: { ...pengajuan, status: 'disetujui' } })));
+  await check('wadek setujui langsung dari klien → deny (harus lewat API)', () =>
+    assertFails(updateDoc(doc(wadek, 'laporan/2025-genap_1001'), {
+      pengunduran: { ...pengajuan, status: 'disetujui' } })));
+  await check('dosen BATALKAN pengajuannya sendiri → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), {
+      status: 'aktif', pengunduran: null })));
+  await check('dosen sunting field lain saat berkas sudah divalidasi → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'laporan/2025-genap_1001'),
+        { pengunduran: { ...pengajuan, status: 'ditolak', catatanWadek: 'Bukti kurang' } },
+        { merge: true });
+    });
+    return assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { permasalahan: 'catatan baru' }));
+  });
+  await check('dosen ubah keputusan yang sudah ditulis WD1 → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), {
+      pengunduran: { ...pengajuan, status: 'ditolak', catatanWadek: 'diubah sendiri' } })));
   await check('admin delete laporan → allow', () => assertSucceeds(deleteDoc(doc(admin, 'laporan/2025-genap_9002'))));
 
   console.log('\nsubmissions/{id}');

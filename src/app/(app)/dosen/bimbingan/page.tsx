@@ -22,6 +22,8 @@ const numInput: React.CSSProperties = {
 };
 
 const STATUS_ENUM = ['aktif', 'cuti', 'non_aktif', 'lulus'];
+/** Nilai filter khusus untuk melihat mahasiswa yang sudah keluar. */
+const FILTER_MENGUNDURKAN = 'mengundurkan_diri_disetujui';
 const BEASISWA_ENUM = ['KIP', 'UKT Kemendiktisaintek', 'Yayasan', 'Prestasi', 'lainnya'];
 const TINGKAT_ENUM = ['prodi', 'fakultas', 'universitas', 'kota', 'provinsi', 'nasional', 'internasional'];
 const TAHAP_ENUM = ['belum', 'pengajuan_judul', 'acc_judul', 'bimbingan_proposal', 'sempro', 'penelitian', 'bimbingan_skripsi', 'sidang', 'lulus'];
@@ -91,7 +93,7 @@ export default function DaftarBimbinganPage() {
   const [tambahBusy, setTambahBusy] = useState(false);
 
   // Kirim laporan
-  const stats = computeDosenStats(recordList);
+  const stats = computeDosenStats(recordList.filter((m) => !m.mengundurkanDiri));
   const [kirimAttempted, setKirimAttempted] = useState(false);
   const [kirimToast, setKirimToast] = useState('');
   const [kirimBusy, setKirimBusy] = useState(false);
@@ -107,9 +109,16 @@ export default function DaftarBimbinganPage() {
   const sort = useTableSort<SortKey>();
   const q = query.trim().toLowerCase();
   const prodiOptions = Array.from(new Set(recordList.map((m) => m.prodi))).sort();
-  const filtered = recordList.filter((m) => {
+  // Pengunduran diri yang sudah disahkan Wakil Dekan I mengeluarkan mahasiswa
+  // dari daftar bimbingan aktif — datanya tetap ada dan bisa dibuka lewat
+  // pilihan "Sudah mengundurkan diri" pada filter status.
+  const keluar = recordList.filter((m) => m.mengundurkanDiri);
+  const aktifList = recordList.filter((m) => !m.mengundurkanDiri);
+  const basis = filterStatus === FILTER_MENGUNDURKAN ? keluar : aktifList;
+  const filtered = basis.filter((m) => {
     const matchesQ = !q || m.nama.toLowerCase().includes(q) || m.npm.includes(q);
-    const matchesStatus = filterStatus === 'semua' || m.status === filterStatus;
+    const matchesStatus =
+      filterStatus === 'semua' || filterStatus === FILTER_MENGUNDURKAN || m.status === filterStatus;
     const matchesProdi = filterProdi === 'semua' || m.prodi === filterProdi;
     return matchesQ && matchesStatus && matchesProdi;
   });
@@ -384,6 +393,10 @@ export default function DaftarBimbinganPage() {
             <option value="aktif">Aktif</option>
             <option value="cuti">Cuti</option>
             <option value="non_aktif">Non-aktif</option>
+            <option value="mengundurkan_diri">Mengundurkan diri (menunggu WD1)</option>
+            {keluar.length > 0 && (
+              <option value={FILTER_MENGUNDURKAN}>Sudah mengundurkan diri ({keluar.length})</option>
+            )}
           </select>
           {prodiOptions.length > 1 && (
             <select
@@ -553,7 +566,7 @@ export default function DaftarBimbinganPage() {
       <PaginationBar
         p={p}
         itemLabel="mahasiswa bimbingan"
-        note={filtered.length !== recordList.length ? `(hasil saring dari ${recordList.length} bimbingan Anda)` : undefined}
+        note={filtered.length !== aktifList.length ? `(hasil saring dari ${aktifList.length} bimbingan aktif Anda)` : undefined}
       />
 
       <input
@@ -574,7 +587,7 @@ export default function DaftarBimbinganPage() {
             </span>
 
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-              <button onClick={() => downloadTemplateBimbingan(recordList)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 14px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12.5, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>
+              <button onClick={() => downloadTemplateBimbingan(aktifList)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 14px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12.5, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}>
                 <Icon path="M12 4v12 M7 11l5 5 5-5 M4 20h16" size={14} />
                 Unduh Template (.xlsx, terisi daftar bimbingan)
               </button>

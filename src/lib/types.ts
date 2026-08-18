@@ -8,7 +8,39 @@ export type Prodi = 'K3' | 'KL' | 'S2KM';
 /** '-' = belum tercatat (laporan distribusi SIAKAD tidak memuat kelas). */
 export type Kelas = 'REG A' | 'REG B' | 'REG C' | 'REG D' | '-';
 export type StatusMahasiswa = 'aktif' | 'cuti' | 'non_aktif' | 'lulus' | 'keluar';
-export type StatusLaporan = 'aktif' | 'cuti' | 'non_aktif' | 'lulus';
+/**
+ * `mengundurkan_diri` adalah status SEMENTARA: dipasang saat dosen PA/admin
+ * mengajukan pengunduran diri dan bertahan hanya sampai Wakil Dekan I
+ * memutuskan. Disetujui → berubah jadi 'non_aktif'; ditolak → dikembalikan ke
+ * `pengunduran.statusSebelum`. Jadi status ini tidak pernah menjadi kondisi
+ * akhir seorang mahasiswa.
+ */
+export type StatusLaporan = 'aktif' | 'cuti' | 'non_aktif' | 'lulus' | 'mengundurkan_diri';
+
+/** Tahap validasi pengunduran diri oleh Wakil Dekan I. */
+export type StatusPengunduran = 'diajukan' | 'disetujui' | 'ditolak';
+
+/**
+ * Berkas pengajuan pengunduran diri, disimpan pada dokumen `laporan` periode
+ * berjalan. Keputusannya HANYA boleh ditulis lewat /api/pengunduran/validasi
+ * (Admin SDK + peran wadek1); Security Rules menolak klien yang mencoba
+ * menyetel status selain 'diajukan' supaya dosen tidak bisa memvalidasi
+ * pengajuannya sendiri.
+ */
+export interface PengunduranDiri {
+  status: StatusPengunduran;
+  /** Status laporan sebelum diajukan — dipulihkan persis bila WD1 menolak. */
+  statusSebelum: StatusLaporan;
+  /** Alasan dari pengaju (dosen PA / admin). Wajib. */
+  alasan: string;
+  diajukanOlehUid: string;
+  diajukanOlehNama: string;
+  diajukanPada?: string;
+  /** Alasan WD1 — wajib saat menolak, opsional saat menyetujui. */
+  catatanWadek?: string;
+  divalidasiOlehNama?: string;
+  divalidasiPada?: string;
+}
 export type StatusPengisian = 'kosong' | 'sebagian' | 'lengkap';
 /** Siklus periode sengaja hanya buka↔tutup (draft → dibuka → dikunci).
  * Tahap 'verifikasi' yang dulu ada dihapus karena membingungkan: namanya
@@ -225,6 +257,14 @@ export interface MahasiswaRecord {
    * memegang link yang sama (satu link dibagikan sekelas) tidak dapat mengubah
    * data temannya. Dosen PA tetap bisa mengedit, dan bisa membuka kuncinya. */
   dikunciMandiri?: boolean;
+  /** Berkas pengajuan pengunduran diri periode ini, bila ada. */
+  pengunduran?: PengunduranDiri | null;
+  /** Mirror master: pengunduran diri sudah DISETUJUI Wakil Dekan I. Mahasiswa
+   * tidak lagi masuk daftar bimbingan aktif dan tidak dibuatkan laporan pada
+   * periode-periode berikutnya, tapi dosenPaUid-nya sengaja dipertahankan
+   * supaya jejak siapa pembimbingnya tetap ada untuk audit. */
+  mengundurkanDiri?: boolean;
+  tanggalMengundurkanDiri?: string;
   statusPengisian: StatusPengisian;
   ipHistory: IpHistoryEntry[];
 }

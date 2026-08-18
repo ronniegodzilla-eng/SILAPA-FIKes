@@ -134,7 +134,7 @@ export function downloadTemplateBimbingan(records: MahasiswaRecord[]) {
     ['Kolom', 'Aturan'],
     ['npm', 'JANGAN DIUBAH — identitas baris (teks)'],
     ['nama', 'Referensi saja — tidak diimport'],
-    ['status', 'aktif | cuti | non_aktif | lulus'],
+    ['status', 'aktif | cuti | non_aktif | lulus. Pengunduran diri TIDAK bisa lewat import — ajukan dari form laporan mahasiswa agar divalidasi Wakil Dekan I.'],
     ['pkkmb / toefl / esq', 'ya | tidak'],
     ['sks_krs', 'angka 0–200'],
     ['ip_khs', 'angka 0.00–4.00'],

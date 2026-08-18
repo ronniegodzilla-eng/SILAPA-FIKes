@@ -74,6 +74,7 @@ export function statusPill(status: string): { color: string; bg: string } {
     cuti: { color: '#5C7A99', bg: '#EAF1F6' },
     non_aktif: { color: '#B0453A', bg: '#FBEAE8' },
     lulus: { color: '#8A6D0B', bg: '#FBF3D9' },
+    mengundurkan_diri: { color: '#8A5A0B', bg: '#FBF1DC' },
   };
   return map[status] || { color: '#5C6B60', bg: '#EFF2EA' };
 }
@@ -114,6 +115,7 @@ export const STATUS_LABEL: Record<string, string> = {
   cuti: 'Cuti',
   non_aktif: 'Non-aktif',
   lulus: 'Lulus',
+  mengundurkan_diri: 'Mengundurkan diri (menunggu WD1)',
 };
 
 export const KELENGKAPAN_LABEL: Record<string, string> = {
@@ -142,4 +144,6 @@ export const NAV_ICONS = {
   download: 'M12 4v12 M7 11l5 5 5-5 M4 20h16',
   users:
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+  userMinus:
+    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 11h5',
 } as const;

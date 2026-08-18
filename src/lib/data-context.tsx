@@ -45,6 +45,10 @@ interface DataContextValue {
     fields: { nama: string; prodi: string; kelas: string; angkatan: number }
   ) => Promise<void>;
   toggleNonaktif: (npm: string) => Promise<void>;
+  /** Ajukan pengunduran diri (dosen PA / admin) — menunggu validasi Wakil Dekan I. */
+  ajukanPengunduran: (npm: string, alasan: string) => Promise<void>;
+  /** Tarik kembali pengajuan yang belum divalidasi. */
+  batalkanPengunduran: (npm: string) => Promise<void>;
 
   setPeriodeStatus: (status: PeriodeStatus) => Promise<void>;
   submitDosenLaporan: (dosenNama: string) => Promise<void>;
@@ -234,6 +238,58 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   }, [periode]);
 
+  // Pengunduran diri hanya DIAJUKAN dari sini; keputusannya ditulis Wakil
+  // Dekan I lewat /api/pengunduran/validasi. Status lama disimpan di berkas
+  // pengajuan supaya bisa dipulihkan persis bila ditolak.
+  const ajukanPengunduran = useCallback(
+    async (npm: string, alasan: string) => {
+      if (!periode || !appUser) return;
+      const rec = records[npm];
+      if (!rec) return;
+      const statusSebelum = rec.status;
+      await data.ajukanPengunduranDiri(periode.id, npm, statusSebelum, alasan, {
+        uid: appUser.uid,
+        nama: appUser.nama,
+      });
+      setRecords((prev) => {
+        const cur = prev[npm];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [npm]: {
+            ...cur,
+            status: 'mengundurkan_diri',
+            pengunduran: {
+              status: 'diajukan',
+              statusSebelum,
+              alasan,
+              diajukanOlehUid: appUser.uid,
+              diajukanOlehNama: appUser.nama,
+              diajukanPada: new Date().toISOString(),
+            },
+          },
+        };
+      });
+    },
+    [periode, appUser, records]
+  );
+
+  const batalkanPengunduran = useCallback(
+    async (npm: string) => {
+      if (!periode) return;
+      const rec = records[npm];
+      if (!rec?.pengunduran) return;
+      const kembali = rec.pengunduran.statusSebelum ?? 'aktif';
+      await data.batalkanPengunduranDiri(periode.id, npm, kembali);
+      setRecords((prev) => {
+        const cur = prev[npm];
+        if (!cur) return prev;
+        return { ...prev, [npm]: { ...cur, status: kembali, pengunduran: null } };
+      });
+    },
+    [periode, records]
+  );
+
   const setPeriodeStatus = useCallback(
     async (status: PeriodeStatus) => {
       if (!periode) return;
@@ -395,6 +451,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         checkNpmExists,
         editMahasiswaMaster,
         toggleNonaktif,
+        ajukanPengunduran,
+        batalkanPengunduran,
         setPeriodeStatus,
         submitDosenLaporan,
         verifTerima,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useData } from '@/lib/data-context';
 import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
@@ -63,6 +64,7 @@ const DRILLDOWN_LABEL: Record<DrilldownKey, string> = {
 type Drilldown = { type: 'ipk'; prodi: string } | { type: 'list'; key: DrilldownKey };
 
 export default function WadekDashboardPage() {
+  const router = useRouter();
   const { periode, dosenRoster, refreshRekapCache } = useData();
   const { appUser } = useAuth();
   const width = useViewportWidth();
@@ -239,6 +241,14 @@ export default function WadekDashboardPage() {
             <MiniTile label="Cuti" value={agg.status.cuti} onClick={() => openDrilldown({ type: 'list', key: 'cuti' })} />
             <MiniTile label="Non-aktif" value={agg.status.nonAktif} onClick={() => openDrilldown({ type: 'list', key: 'non_aktif' })} />
             <MiniTile label="Lulus periode ini" value={agg.status.lulus} onClick={() => openDrilldown({ type: 'list', key: 'lulus' })} />
+            {/* Menunggu KEPUTUSAN Wakil Dekan I, jadi diarahkan ke halaman
+                validasinya, bukan ke drill-down daftar seperti kotak lain. */}
+            <MiniTile
+              label="Undur diri — menunggu Anda"
+              value={agg.status.mengundurkanDiri ?? 0}
+              title="Pengajuan pengunduran diri dari dosen PA/admin yang belum Anda validasi. Klik untuk membukanya."
+              onClick={() => router.push('/wadek/pengunduran')}
+            />
             <MiniTile label="Aktif organisasi" value={agg.nonAkademik.organisasi} title="Definisi 'aktif organisasi' (UKM/HIMA/BEM): tercatat sebagai anggota atau pengurus pada periode berjalan (§7.2 — tetapkan definisi resmi bersama Wadek I)." onClick={() => openDrilldown({ type: 'list', key: 'organisasi' })} />
             <MiniTile label="Penerima beasiswa" value={agg.nonAkademik.beasiswa} onClick={() => openDrilldown({ type: 'list', key: 'beasiswa' })} />
             <MiniTile label="Meraih prestasi" value={agg.nonAkademik.prestasi} onClick={() => openDrilldown({ type: 'list', key: 'prestasi' })} />

@@ -5,6 +5,7 @@ import { useData } from '@/lib/data-context';
 import { colors, statusPill, STATUS_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
+import { PengunduranModal } from '@/components/PengunduranModal';
 import type { MahasiswaRecord } from '@/lib/types';
 
 /** Kolom yang bisa diurutkan pada tabel master mahasiswa. */
@@ -24,7 +25,8 @@ interface Draft {
 }
 
 export default function MasterMahasiswaPage() {
-  const { recordList, dosenPaOptions, addMahasiswa, editMahasiswaMaster, toggleNonaktif } = useData();
+  const { recordList, records, dosenPaOptions, addMahasiswa, editMahasiswaMaster, toggleNonaktif, ajukanPengunduran } = useData();
+  const [undurNpm, setUndurNpm] = useState<string | null>(null);
   // dosenPaOptions, bukan dosenRoster: mahasiswa yang diplot ke dosen yang
   // baru didaftarkan akan tampil "belum diplot" bila hanya roster yang dipakai.
   const namaByUid = new Map(dosenPaOptions.map((d) => [d.dosenUid, d.nama]));
@@ -136,9 +138,17 @@ export default function MasterMahasiswaPage() {
                   <td style={{ padding: '11px 16px' }}><Pill label={STATUS_LABEL[m.status]} color={sp.color} bg={sp.bg} capitalize /></td>
                   <td style={{ padding: '11px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span onClick={() => openEdit(m)} style={{ fontSize: 12, fontWeight: 700, color: colors.green, cursor: 'pointer', marginRight: 14 }}>Edit</span>
-                    <span onClick={() => toggleNonaktif(m.npm)} style={{ fontSize: 12, fontWeight: 700, color: colors.danger, cursor: 'pointer' }}>
+                    <span onClick={() => toggleNonaktif(m.npm)} style={{ fontSize: 12, fontWeight: 700, color: colors.danger, cursor: 'pointer', marginRight: 14 }}>
                       {m.status === 'non_aktif' ? 'Aktifkan' : 'Nonaktifkan'}
                     </span>
+                    {/* Pengunduran diri bukan sekadar menonaktifkan: ia butuh
+                        persetujuan Wakil Dekan I, jadi tautannya hanya muncul
+                        selama belum ada pengajuan yang berjalan/disahkan. */}
+                    {!m.mengundurkanDiri && m.status !== 'mengundurkan_diri' && (
+                      <span onClick={() => setUndurNpm(m.npm)} style={{ fontSize: 12, fontWeight: 700, color: colors.amberText, cursor: 'pointer' }}>
+                        Ajukan Undur Diri
+                      </span>
+                    )}
                   </td>
                 </tr>
               );
@@ -151,6 +161,18 @@ export default function MasterMahasiswaPage() {
         itemLabel="mahasiswa"
         note={filtered.length !== recordList.length ? `(hasil saring dari ${recordList.length} mahasiswa terdaftar di fakultas)` : undefined}
       />
+
+      {undurNpm && records[undurNpm] && (
+        <PengunduranModal
+          nama={records[undurNpm].nama}
+          npm={undurNpm}
+          onBatal={() => setUndurNpm(null)}
+          onKirim={async (alasan) => {
+            await ajukanPengunduran(undurNpm, alasan);
+            setUndurNpm(null);
+          }}
+        />
+      )}
 
       {mode && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>

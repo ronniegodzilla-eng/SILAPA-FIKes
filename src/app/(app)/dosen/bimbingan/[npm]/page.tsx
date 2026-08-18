@@ -9,13 +9,15 @@ import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
 import { SemkesSection } from '@/components/SemkesSection';
+import { PengunduranModal } from '@/components/PengunduranModal';
 import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
 
 export default function FormLaporanPage() {
   const params = useParams<{ npm: string }>();
   const npm = params.npm;
   const router = useRouter();
-  const { records, updateField, saveStatus, periode } = useData();
+  const { records, updateField, saveStatus, periode, ajukanPengunduran, batalkanPengunduran } = useData();
+  const [modalUndur, setModalUndur] = useState(false);
   const rec = records[npm];
 
   useSetHeader('Form Laporan Mahasiswa', rec ? `${rec.nama} — NPM ${rec.npm}` : '');
@@ -24,7 +26,13 @@ export default function FormLaporanPage() {
     return <div style={{ fontSize: 13, color: colors.muted }}>Data mahasiswa tidak ditemukan.</div>;
   }
 
-  const showAkademik = rec.status !== 'cuti' && rec.status !== 'non_aktif';
+  const pengunduran = rec.pengunduran ?? null;
+  const menungguValidasi = pengunduran?.status === 'diajukan';
+  // Selama menunggu validasi, isian akademik disembunyikan sama seperti
+  // cuti/non-aktif: mahasiswanya sudah tidak berkuliah, mengisi KRS/KHS baru
+  // hanya akan jadi data yang harus dihapus lagi bila pengajuannya disetujui.
+  const showAkademik =
+    rec.status !== 'cuti' && rec.status !== 'non_aktif' && rec.status !== 'mengundurkan_diri';
   const showSkripsi = showAkademik && rec.semesterKe >= 7;
   const kp = kelengkapanPill(rec.statusPengisian);
   const set = (path: string, value: unknown) => updateField(npm, path, value);
@@ -32,6 +40,12 @@ export default function FormLaporanPage() {
   // dipindah, flag itu ikut dibersihkan supaya tidak tertinggal diam-diam lalu
   // terbawa ke laporan PDF/rekap fakultas.
   const setStatus = (next: string) => {
+    // "Mengundurkan diri" bukan status yang bisa dipasang langsung — ia harus
+    // melewati validasi Wakil Dekan I, jadi pilihan itu membuka form alasan.
+    if (next === 'mengundurkan_diri') {
+      setModalUndur(true);
+      return;
+    }
     set('status', next);
     if (next !== 'non_aktif' && rec.rekomendasiDO) set('rekomendasiDO', false);
   };
@@ -107,6 +121,39 @@ export default function FormLaporanPage() {
         </div>
       </Card>
 
+      {/* Pengunduran diri: statusnya baru berlaku setelah Wakil Dekan I
+          memvalidasi, jadi kartu ini yang memberi tahu dosen di tahap mana
+          pengajuannya berada — termasuk alasan bila ditolak. */}
+      {pengunduran && (
+        <Card
+          padding="14px 18px"
+          style={{
+            background: menungguValidasi ? colors.amberBg : pengunduran.status === 'ditolak' ? '#FBEAE8' : colors.greenSoftBg,
+            border: `1px solid ${menungguValidasi ? colors.amberText : pengunduran.status === 'ditolak' ? colors.danger : colors.greenSoftBorder}`,
+          }}
+        >
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 4 }}>
+            {menungguValidasi
+              ? 'Pengunduran diri menunggu validasi Wakil Dekan I'
+              : pengunduran.status === 'ditolak'
+                ? 'Pengunduran diri ditolak Wakil Dekan I'
+                : 'Pengunduran diri disetujui Wakil Dekan I'}
+          </span>
+          <span style={{ fontSize: 11.5, color: colors.muted, lineHeight: 1.6, display: 'block' }}>
+            Diajukan oleh {pengunduran.diajukanOlehNama} — alasan: {pengunduran.alasan}
+            {pengunduran.catatanWadek ? ` · Catatan Wakil Dekan I: ${pengunduran.catatanWadek}` : ''}
+          </span>
+          {menungguValidasi && (
+            <button
+              onClick={() => batalkanPengunduran(npm)}
+              style={{ marginTop: 10, padding: '8px 14px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}
+            >
+              Batalkan pengajuan
+            </button>
+          )}
+        </Card>
+      )}
+
       {/* Kunci isi-data mandiri: terpasang OTOMATIS begitu mahasiswa menyimpan
           lewat link publik, supaya teman sekelas yang memegang link yang sama
           tidak bisa mengubah datanya. Dosen tetap bebas mengedit di sini. */}
@@ -149,6 +196,7 @@ export default function FormLaporanPage() {
               <option value="cuti">Cuti</option>
               <option value="non_aktif">Non-aktif</option>
               <option value="lulus">Lulus</option>
+              <option value="mengundurkan_diri">Mengundurkan diri…</option>
             </select>
           </div>
           <div>
@@ -321,6 +369,18 @@ export default function FormLaporanPage() {
           <Pill label={KELENGKAPAN_LABEL[rec.statusPengisian]} color={kp.color} bg={kp.bg} />
         </div>
       </Card>
+
+      {modalUndur && (
+        <PengunduranModal
+          nama={rec.nama}
+          npm={rec.npm}
+          onBatal={() => setModalUndur(false)}
+          onKirim={async (alasan) => {
+            await ajukanPengunduran(npm, alasan);
+            setModalUndur(false);
+          }}
+        />
+      )}
     </div>
   );
 }

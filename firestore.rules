@@ -33,6 +33,20 @@ service cloud.firestore {
       return ak.ipKhs == null || (ak.ipKhs is number && ak.ipKhs >= 0 && ak.ipKhs <= 4);
     }
 
+    // Pengunduran diri: dari klien HANYA boleh berstatus 'diajukan'. Keputusan
+    // ('disetujui'/'ditolak') milik Wakil Dekan I dan ditulis lewat
+    // /api/pengunduran/validasi memakai Admin SDK, yang melewati rules ini.
+    // Tanpa penjaga ini seorang dosen PA bisa meloloskan pengajuannya sendiri
+    // — dan mengeluarkan mahasiswa dari daftar bimbingannya tanpa persetujuan.
+    // Cabang terakhir mengizinkan penyuntingan biasa pada laporan yang berkasnya
+    // sudah divalidasi, selama berkas itu sendiri tidak ikut diubah.
+    function pengunduranSah() {
+      return !('pengunduran' in request.resource.data)
+        || request.resource.data.pengunduran == null
+        || request.resource.data.pengunduran.status == 'diajukan'
+        || request.resource.data.pengunduran == resource.data.pengunduran;
+    }
+
     // ── users ──
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin() || isWadek());
@@ -90,12 +104,14 @@ service cloud.firestore {
                  ['npm', 'prodi', 'dosenPaUid', 'semesterKe', 'semesterKeManual',
                   'kelas', 'status', 'akademik', 'nonAkademik', 'skripsi',
                   'permasalahan', 'rekomendasi', 'rekomendasiDO', 'dikunciMandiri',
-                  'statusPengisian', 'periodeId']));
+                  'pengunduran', 'statusPengisian', 'periodeId']));
       allow delete: if isAdmin();
 
       // Dosen edits only their own, only while the periode is unlocked,
-      // and IPK stays in range.
+      // and IPK stays in range. Admin pun tidak boleh memvalidasi pengunduran
+      // diri — itu wewenang Wakil Dekan I lewat route server.
       allow update: if !periodeLocked(resource.data.periodeId)
+        && pengunduranSah()
         && (isAdmin()
             || (isDosen()
                 && resource.data.dosenPaUid == request.auth.uid

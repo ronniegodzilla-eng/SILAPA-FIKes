@@ -15,7 +15,9 @@ import { computeSemesterKe, computeStatusPengisian, computeWadekAggregates, type
 import { SEMKES_MAX } from '../types';
 import type {
   DosenRosterEntry,
+  PengunduranDiri,
   Prodi,
+  StatusLaporan,
   MahasiswaRecord,
   SemkesEntry,
   Periode,
@@ -134,6 +136,9 @@ function mergeRecord(master: any, laporan: any): MahasiswaRecord {
     rekomendasi: laporan?.rekomendasi ?? '',
     rekomendasiDO: laporan?.rekomendasiDO ?? false,
     dikunciMandiri: laporan?.dikunciMandiri ?? false,
+    pengunduran: laporan?.pengunduran ?? null,
+    mengundurkanDiri: master.mengundurkanDiri === true,
+    tanggalMengundurkanDiri: master.tanggalMengundurkanDiri ?? undefined,
     statusPengisian: laporan?.statusPengisian ?? 'kosong',
   };
 }
@@ -291,6 +296,112 @@ export async function saveMahasiswaMasterEdit(
 ) {
   const db = getDbOrThrow();
   await updateDoc(doc(db, 'mahasiswa', npm), { ...fields, updatedAt: serverTimestamp() });
+}
+
+// ─── Pengunduran diri (dosen/admin ajukan → Wakil Dekan I validasi) ─────
+
+/**
+ * Ajukan pengunduran diri untuk satu mahasiswa pada periode berjalan.
+ *
+ * Hanya MENGAJUKAN: status laporan dipasang 'mengundurkan_diri' dan status
+ * lamanya disimpan agar bisa dipulihkan bila ditolak. Keputusannya ditulis
+ * terpisah oleh /api/pengunduran/validasi — Security Rules menolak klien yang
+ * mencoba mengisi `pengunduran.status` selain 'diajukan', sehingga dosen tidak
+ * dapat meloloskan pengajuannya sendiri.
+ */
+export async function ajukanPengunduranDiri(
+  periodeId: string,
+  npm: string,
+  statusSebelum: StatusLaporan,
+  alasan: string,
+  pengaju: { uid: string; nama: string }
+) {
+  const db = getDbOrThrow();
+  await setDoc(
+    doc(db, 'laporan', laporanId(periodeId, npm)),
+    {
+      periodeId,
+      npm,
+      status: 'mengundurkan_diri',
+      pengunduran: {
+        status: 'diajukan',
+        statusSebelum,
+        alasan,
+        diajukanOlehUid: pengaju.uid,
+        diajukanOlehNama: pengaju.nama,
+        diajukanPada: new Date().toISOString(),
+      },
+    },
+    { merge: true }
+  );
+}
+
+/** Batalkan pengajuan yang belum divalidasi — status dikembalikan seperti semula. */
+export async function batalkanPengunduranDiri(
+  periodeId: string,
+  npm: string,
+  statusSebelum: StatusLaporan
+) {
+  const db = getDbOrThrow();
+  await setDoc(
+    doc(db, 'laporan', laporanId(periodeId, npm)),
+    { periodeId, npm, status: statusSebelum, pengunduran: null },
+    { merge: true }
+  );
+}
+
+export interface PengunduranPendingRow {
+  npm: string;
+  nama: string;
+  prodi: string;
+  angkatan: number;
+  dosenPaUid: string;
+  semesterKe: number;
+  pengunduran: PengunduranDiri;
+}
+
+/**
+ * Antrean validasi Wakil Dekan I. Sengaja TIDAK memakai
+ * fetchAllMahasiswaMaster(): pengajuan biasanya hanya segelintir, jadi nama
+ * diambil per-dokumen alih-alih menarik 1.500 master sekaligus.
+ */
+export async function fetchPengunduranPending(
+  periodeId: string
+): Promise<PengunduranPendingRow[]> {
+  const db = getDbOrThrow();
+  const snap = await getDocs(
+    query(
+      collection(db, 'laporan'),
+      where('periodeId', '==', periodeId),
+      where('status', '==', 'mengundurkan_diri')
+    )
+  );
+  const laporans = snap.docs
+    .map((d) => d.data() as any)
+    .filter((l) => l.pengunduran?.status === 'diajukan');
+  if (!laporans.length) return [];
+
+  const masters = await Promise.all(
+    laporans.map((l) => getDoc(doc(db, 'mahasiswa', String(l.npm))))
+  );
+  return laporans
+    .map((l, i) => {
+      const m = (masters[i].data() as any) ?? {};
+      return {
+        npm: String(l.npm),
+        nama: m.nama ?? String(l.npm),
+        prodi: m.prodi ?? l.prodi ?? '—',
+        angkatan: m.angkatan ?? 0,
+        dosenPaUid: l.dosenPaUid ?? '',
+        semesterKe: l.semesterKe ?? 0,
+        pengunduran: l.pengunduran as PengunduranDiri,
+      };
+    })
+    .sort((a, b) =>
+      String(a.pengunduran.diajukanPada ?? '').localeCompare(
+        String(b.pengunduran.diajukanPada ?? '')
+      )
+    );
 }
 
 export async function setMahasiswaStatusGlobal(npm: string, statusGlobal: string) {
@@ -725,6 +836,10 @@ export async function bukaPeriodeGenerate(periode: {
     const m = d.data() as any;
     const sg = m.statusGlobal ?? 'aktif';
     if (sg === 'lulus' || sg === 'keluar') return; // no report needed
+    // Pengunduran diri yang sudah disahkan Wakil Dekan I berlaku seterusnya:
+    // tanpa ini mahasiswanya akan muncul lagi di daftar bimbingan dosen pada
+    // periode berikutnya.
+    if (m.mengundurkanDiri === true) return;
     perDosen.set(m.dosenPaUid ?? '', (perDosen.get(m.dosenPaUid ?? '') ?? 0) + 1);
     if (existing.has(m.npm)) {
       skipped++;

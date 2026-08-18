@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       return [...semCounts, ipk];
     }
 
-    let totCuti = 0, totNonaktif = 0, totRekDO = 0, totHima = 0, totUkm = 0;
+    let totCuti = 0, totNonaktif = 0, totRekDO = 0, totUndurDiri = 0, totHima = 0, totUkm = 0;
     let totPrestasi = 0, totBeasiswa = 0;
     let totSudahPkkmb = 0, totSudahToefl = 0, totSudahEsq = 0, totSudahSemkes = 0;
     let totBelumPkkmb = 0, totBelumToefl = 0, totBelumEsq = 0, totBelumSemkes = 0;
@@ -82,6 +82,9 @@ export async function GET(req: NextRequest) {
       // Rekomendasi DO hanya sah untuk mahasiswa non-aktif — status ikut
       // diperiksa agar flag lama yang tertinggal tidak ikut terhitung.
       const rekDO = own.filter((l) => l.status === 'non_aktif' && l.rekomendasiDO).length;
+      // Bagian dari angka TIDAK AKTIF, bukan tambahan: pengunduran diri yang
+      // disahkan Wakil Dekan I memang menjadikan mahasiswanya non-aktif.
+      const undurDiri = own.filter((l) => l.pengunduran?.status === 'disetujui').length;
       const hima = own.filter((l) => l.nonAkademik?.hima).length;
       const ukmRecs = own.filter((l) => l.nonAkademik?.ukm);
       const ukm = ukmRecs.length;
@@ -109,7 +112,8 @@ export async function GET(req: NextRequest) {
       const lulusK3 = k3.filter((l) => l.status === 'lulus').length;
       const lulusKL = kl.filter((l) => l.status === 'lulus').length;
 
-      totCuti += cuti; totNonaktif += nonaktif; totRekDO += rekDO; totHima += hima; totUkm += ukm;
+      totCuti += cuti; totNonaktif += nonaktif; totRekDO += rekDO; totUndurDiri += undurDiri;
+      totHima += hima; totUkm += ukm;
       totPrestasi += prestasiRecs.length; totBeasiswa += beasiswaRecs.length;
       totSudahPkkmb += sudahPkkmb; totSudahToefl += sudahToefl; totSudahEsq += sudahEsq; totSudahSemkes += sudahSemkes;
       totBelumPkkmb += own.length - sudahPkkmb; totBelumToefl += own.length - sudahToefl;
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
         ...prodiStats(k3, semK3KL),
         ...prodiStats(kl, semK3KL),
         ...prodiStats(s2km, semS2KM),
-        cuti, nonaktif, rekDO,
+        cuti, nonaktif, rekDO, undurDiri,
         hima, ukm, ukmJenis,
         prestasiRecs.length, prestasiJenis,
         beasiswaRecs.length, beasiswaJenis,
@@ -138,7 +142,7 @@ export async function GET(req: NextRequest) {
       ...prodiStats(laporan.filter((l) => l.prodi === 'K3'), semK3KL),
       ...prodiStats(laporan.filter((l) => l.prodi === 'KL'), semK3KL),
       ...prodiStats(laporan.filter((l) => l.prodi === 'S2KM'), semS2KM),
-      totCuti, totNonaktif, totRekDO,
+      totCuti, totNonaktif, totRekDO, totUndurDiri,
       totHima, totUkm, '',
       totPrestasi, '',
       totBeasiswa, '',
@@ -187,7 +191,7 @@ export async function GET(req: NextRequest) {
     prodiGroup('PRODI K3', semK3KL);
     prodiGroup('PRODI KESEHATAN LINGKUNGAN', semK3KL);
     prodiGroup('PRODI MAGISTER KESEHATAN MASYARAKAT', semS2KM);
-    simpleGroup('JUMLAH MAHASISWA', ['CUTI', 'TIDAK AKTIF', 'REKOMENDASI DO']);
+    simpleGroup('JUMLAH MAHASISWA', ['CUTI', 'TIDAK AKTIF', 'REKOMENDASI DO', 'MENGUNDURKAN DIRI']);
     simpleGroup('JUMLAH MAHASISWA DALAM KEIKUTSERTAAN ORGANISASI', ['HIMA', 'UKM', 'JENIS UKM']);
     simpleGroup('PRESTASI', ['JUMLAH', 'JENIS']);
     simpleGroup('BEASISWA', ['JUMLAH', 'JENIS']);
@@ -217,6 +221,7 @@ export async function GET(req: NextRequest) {
       if (typeof label !== 'string' || !sheet1['!cols']![c]) return;
       if (label.includes('JENIS')) sheet1['!cols']![c] = { wch: 20 };
       else if (label === 'REKOMENDASI DO') sheet1['!cols']![c] = { wch: 16 };
+      else if (label === 'MENGUNDURKAN DIRI') sheet1['!cols']![c] = { wch: 18 };
     });
 
     // ── Sheet 2: PROPOSAL SKRIPSI — urutan kolom identik file lama ──────
@@ -340,12 +345,55 @@ export async function GET(req: NextRequest) {
     ]);
     sheet5['!cols'] = [{ wch: 4 }, { wch: 16 }, { wch: 28 }, { wch: 7 }, { wch: 5 }, { wch: 30 }, { wch: 45 }, { wch: 45 }];
 
+    // ── Sheet 6: PENGUNDURAN DIRI — jejak pengajuan + keputusan WD1 ─────
+    // Kolom "MENGUNDURKAN DIRI" di sheet REKAPITULASI hanya menghitung yang
+    // DISETUJUI. Untuk audit, Wakil Dekan I perlu melihat seluruh pengajuan
+    // beserta keputusannya — termasuk yang ditolak dan alasannya.
+    const undurLabel: Record<string, string> = {
+      diajukan: 'Menunggu validasi',
+      disetujui: 'Disetujui',
+      ditolak: 'Ditolak',
+    };
+    const undurRows = laporan
+      .filter((l) => l.pengunduran)
+      .sort((a, b) =>
+        String(a.pengunduran?.diajukanPada ?? '').localeCompare(String(b.pengunduran?.diajukanPada ?? ''))
+      );
+
+    const sheet6 = XLSX.utils.aoa_to_sheet([
+      ['PENGUNDURAN DIRI MAHASISWA — pengajuan Dosen PA/Admin dan keputusan Wakil Dekan I'],
+      [`Periode ${periodeLabel}`],
+      [],
+      ['No', 'NPM', 'Nama', 'Prodi', 'Dosen PA', 'Diajukan Oleh', 'Alasan Pengajuan', 'Keputusan', 'Catatan WD1', 'Divalidasi Oleh'],
+      ...(undurRows.length
+        ? undurRows.map((l, i) => [
+            i + 1,
+            String(l.npm), // NPM sebagai teks — jangan pernah jadi angka (PRD §4)
+            (masterByNpm.get(l.npm) ?? {}).nama ?? '',
+            l.prodi,
+            namaByUid.get(l.dosenPaUid) ?? '—',
+            l.pengunduran?.diajukanOlehNama ?? '—',
+            l.pengunduran?.alasan ?? '—',
+            undurLabel[l.pengunduran?.status] ?? l.pengunduran?.status ?? '—',
+            l.pengunduran?.catatanWadek || '—',
+            l.pengunduran?.divalidasiOlehNama || '—',
+          ])
+        : [['—', '—', 'Tidak ada pengajuan pengunduran diri pada periode ini.', '', '', '', '', '', '', '']]),
+      [],
+      ['Catatan: mahasiswa yang pengunduran dirinya DISETUJUI otomatis berstatus non-aktif dan keluar dari daftar bimbingan dosen PA-nya.'],
+    ]);
+    sheet6['!cols'] = [
+      { wch: 4 }, { wch: 16 }, { wch: 28 }, { wch: 7 }, { wch: 30 },
+      { wch: 26 }, { wch: 45 }, { wch: 18 }, { wch: 40 }, { wch: 26 },
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet1, 'REKAPITULASI');
     XLSX.utils.book_append_sheet(wb, sheet2, 'PROPOSAL SKRIPSI');
     XLSX.utils.book_append_sheet(wb, sheet3, 'DISTRIBUSI DOSEN PA');
     XLSX.utils.book_append_sheet(wb, sheet4, 'BUKTI');
     XLSX.utils.book_append_sheet(wb, sheet5, 'REKOMENDASI DO');
+    XLSX.utils.book_append_sheet(wb, sheet6, 'PENGUNDURAN DIRI');
     const buf: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     return new Response(new Uint8Array(buf), {

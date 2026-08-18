@@ -29,6 +29,7 @@ export const NAV_CONFIG: Record<Role, NavItem[]> = {
   wadek1: [
     { href: '/wadek', label: 'Dashboard Fakultas', icon: NAV_ICONS.gauge },
     { href: '/wadek/verifikasi', label: 'Verifikasi', icon: NAV_ICONS.check },
+    { href: '/wadek/pengunduran', label: 'Pengunduran Diri', icon: NAV_ICONS.userMinus },
     { href: '/wadek/ekspor', label: 'Ekspor & Arsip', icon: NAV_ICONS.download },
   ],
 };
@@ -50,6 +51,7 @@ export const PAGE_TITLES: Record<string, [string, string]> = {
   '/admin/pengguna': ['Kelola Pengguna', 'Buat dan kelola akun dosen PA, admin, dan Wakil Dekan'],
   '/wadek': ['Dashboard Fakultas', 'Visibilitas real-time progres pelaporan 22 dosen PA'],
   '/wadek/verifikasi': ['Verifikasi Laporan', 'Terima atau kembalikan kiriman laporan dosen PA'],
+  '/wadek/pengunduran': ['Pengunduran Diri', 'Validasi pengajuan pengunduran diri mahasiswa dari dosen PA dan admin'],
   '/wadek/ekspor': ['Ekspor & Arsip', 'Unduh PDF per dosen, rekap Excel, dan arsip periode terkunci'],
   // Terbuka untuk semua peran — diakses lewat blok pengguna di bawah sidebar,
   // bukan lewat NAV_CONFIG yang dipisah per peran.
