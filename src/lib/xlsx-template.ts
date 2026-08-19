@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { DosenPaOption } from './firestore/data';
-import type { MahasiswaRecord } from './types';
+import { KELAS_PILIHAN, type MahasiswaRecord } from './types';
 
 /**
  * Client-side .xlsx template generators. Every NPM cell is forced to TEXT
@@ -51,7 +51,7 @@ export function downloadTemplateMahasiswa(dosenList: DosenPaOption[]) {
     ['nama', 'WAJIB'],
     ['prodi', 'WAJIB — salah satu: K3, KL, S2KM'],
     ['angkatan', 'WAJIB — tahun 4 digit, mis. 2026'],
-    ['kelas', 'OPSIONAL — REG A, REG B, REG C, atau REG D. Kosongkan bila mahasiswa tidak dibagi kelas (tercatat sebagai "-").'],
+    ['kelas', `OPSIONAL — ${KELAS_PILIHAN.join(', ')}. Kosongkan bila mahasiswa tidak dibagi kelas (tercatat sebagai "-").`],
     ['dosen_pa', 'OPSIONAL — nama dosen sesuai sheet DAFTAR DOSEN PA (boleh tanpa gelar asal unik). Kosongkan bila belum diplot.'],
     [],
     ['Baris dengan NPM duplikat (di dalam file maupun yang sudah terdaftar) akan gagal validasi.'],

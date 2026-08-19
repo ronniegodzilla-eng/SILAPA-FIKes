@@ -8,7 +8,7 @@ import { Card, Icon, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
 import { uploadBuktiFilePublic } from '@/lib/upload-bukti-public';
 import { konsultasiJenisLabel } from '@/lib/compute';
-import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis, type SemkesEntry } from '@/lib/types';
+import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis, type SemkesEntry } from '@/lib/types';
 import { SemkesSection } from '@/components/SemkesSection';
 
 type Phase = 'loading' | 'error' | 'pick' | 'formLoading' | 'form' | 'saved';
@@ -17,6 +17,7 @@ interface RosterItem { npm: string; nama: string; }
 
 interface FormState {
   status: string;
+  kelas: string;
   pkkmb: boolean; pkkmbBukti: string;
   toefl: boolean; toeflBukti: string;
   esq: boolean; esqBukti: string;
@@ -159,6 +160,7 @@ export default function IsiDataMandiriPage() {
       setSavedIp(data.akademik.ipKhs);
       const dariServer: FormState = {
         status: data.status,
+        kelas: data.identitas?.kelas ?? '-',
         pkkmb: data.pkkmb, pkkmbBukti: data.pkkmbBukti,
         toefl: data.toefl, toeflBukti: data.toeflBukti,
         esq: data.esq, esqBukti: data.esqBukti,
@@ -375,7 +377,7 @@ export default function IsiDataMandiriPage() {
               </span>
               <div style={{ fontFamily: "'Lora',serif", fontSize: 17, fontWeight: 700, color: colors.ink }}>{identitas.nama}</div>
               <div style={{ fontSize: 12.5, color: colors.muted, marginTop: 3 }}>
-                NPM {identitas.npm} · {identitas.prodi} · Kelas {identitas.kelas} · Angkatan {identitas.angkatan} · Semester {semesterKe}
+                NPM {identitas.npm} · {identitas.prodi} · Angkatan {identitas.angkatan} · Semester {semesterKe}
               </div>
               <span style={{ fontSize: 11.5, color: colors.faint, display: 'block', marginTop: 8 }}>
                 Bukan Anda, atau data di atas salah? Jangan lanjutkan — hubungi dosen PA atau admin fakultas.
@@ -389,6 +391,13 @@ export default function IsiDataMandiriPage() {
                   <label style={labelStyle}>Status mahasiswa</label>
                   <select value={form.status} onChange={(e) => set('status', e.target.value)} style={inputStyle}>
                     {STATUS_ENUM.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Kelas</label>
+                  <select value={form.kelas} onChange={(e) => set('kelas', e.target.value)} style={inputStyle}>
+                    <option value="-">— belum tercatat</option>
+                    {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
                   </select>
                 </div>
                 <div>

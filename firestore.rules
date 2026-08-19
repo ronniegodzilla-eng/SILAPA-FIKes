@@ -78,12 +78,16 @@ service cloud.firestore {
                   'pkkmbBukti', 'toeflBukti', 'esqBukti']));
       // Dosen may update only the once-per-degree master fields
       // (pkkmb/toefl/esq/semkes) + ipHistory for their bimbingan.
+      // `kelas` ikut boleh: distribusi SIAKAD tidak memuatnya sehingga hampir
+      // semua record masih '-', dan hanya dosen PA/mahasiswanya yang tahu
+      // kelas sebenarnya. Identitas lain (npm/nama/prodi/angkatan/dosenPaUid)
+      // tetap tertutup.
       allow update: if isAdmin()
         || (isDosen()
             && resource.data.dosenPaUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['pkkmb', 'toefl', 'esq', 'semkes', 'ipHistory', 'updatedAt',
-                           'pkkmbBukti', 'toeflBukti', 'esqBukti']));
+                           'kelas', 'pkkmbBukti', 'toeflBukti', 'esqBukti']));
     }
 
     // ── laporan (one per mahasiswa per periode) ──

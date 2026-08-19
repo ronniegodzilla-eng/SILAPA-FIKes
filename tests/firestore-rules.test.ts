@@ -143,6 +143,13 @@ async function main() {
     assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { toeflBukti: 'https://drive.google.com/file/d/xyz' })));
   await check('dosen BUKAN pemilik unggah bukti TOEFL → deny', () =>
     assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { toeflBukti: 'https://drive.google.com/file/d/xyz' })));
+  // Kelas boleh dikoreksi dosen PA (SIAKAD tidak memuatnya), identitas lain tidak.
+  await check('dosen pemilik ubah kelas → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { kelas: 'RPL' })));
+  await check('dosen BUKAN pemilik ubah kelas → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { kelas: 'RPL' })));
+  await check('dosen ubah kelas SEKALIGUS prodi → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { kelas: 'REG A', prodi: 'S2KM' })));
   await check('admin ubah field apa pun di mahasiswa → allow', () =>
     assertSucceeds(updateDoc(doc(admin, 'mahasiswa/1001'), { nama: 'Diubah Admin' })));
 

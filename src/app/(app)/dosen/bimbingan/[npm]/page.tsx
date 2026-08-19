@@ -10,7 +10,7 @@ import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
 import { SemkesSection } from '@/components/SemkesSection';
 import { PengunduranModal } from '@/components/PengunduranModal';
-import { KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
+import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis } from '@/lib/types';
 
 export default function FormLaporanPage() {
   const params = useParams<{ npm: string }>();
@@ -80,7 +80,20 @@ export default function FormLaporanPage() {
         <div>
           <div style={{ fontFamily: "'Lora',serif", fontSize: 19, fontWeight: 700, color: colors.ink }}>{rec.nama}</div>
           <div style={{ fontSize: 12.5, color: colors.muted, marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span>NPM {rec.npm} · {rec.prodi} · Kelas {rec.kelas} · Semester</span>
+            <span>NPM {rec.npm} · {rec.prodi} · Kelas</span>
+            {/* Kelas dapat dikoreksi dosen PA: data distribusi SIAKAD tidak
+                memuatnya, jadi hampir semua mahasiswa masih '-' dan hanya
+                dosen/mahasiswanya sendiri yang tahu kelas sebenarnya. */}
+            <select
+              value={rec.kelas}
+              onChange={(e) => set('kelas', e.target.value)}
+              title="Kelas mahasiswa — pilih bila belum tercatat atau perlu dikoreksi"
+              style={{ padding: '2px 6px', borderRadius: 6, border: `1px solid ${colors.border}`, fontSize: 12.5 }}
+            >
+              <option value="-">— belum tercatat</option>
+              {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+            <span>· Semester</span>
             <input
               type="number"
               min={1}

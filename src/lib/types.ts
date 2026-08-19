@@ -6,7 +6,13 @@
 export type Role = 'dosen_pa' | 'admin' | 'wadek1';
 export type Prodi = 'K3' | 'KL' | 'S2KM';
 /** '-' = belum tercatat (laporan distribusi SIAKAD tidak memuat kelas). */
-export type Kelas = 'REG A' | 'REG B' | 'REG C' | 'REG D' | '-';
+export type Kelas = 'REG A' | 'REG B' | 'REG C' | 'RPL' | '-';
+/**
+ * Pilihan kelas yang boleh dipilih di form (tanpa '-', yang hanya menandai
+ * "belum tercatat"). Satu-satunya sumber daftar ini — sebelumnya ditulis ulang
+ * di lima berkas dan sempat berbeda-beda saat pilihannya berubah.
+ */
+export const KELAS_PILIHAN: Kelas[] = ['REG A', 'REG B', 'REG C', 'RPL'];
 export type StatusMahasiswa = 'aktif' | 'cuti' | 'non_aktif' | 'lulus' | 'keluar';
 /**
  * `mengundurkan_diri` adalah status SEMENTARA: dipasang saat dosen PA/admin

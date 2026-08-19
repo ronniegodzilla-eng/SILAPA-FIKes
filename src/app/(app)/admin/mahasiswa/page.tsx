@@ -6,7 +6,7 @@ import { colors, statusPill, STATUS_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 import { PengunduranModal } from '@/components/PengunduranModal';
-import type { MahasiswaRecord } from '@/lib/types';
+import { KELAS_PILIHAN, type MahasiswaRecord } from '@/lib/types';
 
 /** Kolom yang bisa diurutkan pada tabel master mahasiswa. */
 type SortKey = 'npm' | 'nama' | 'prodi' | 'angkatan' | 'kelas' | 'dosen' | 'status';
@@ -202,10 +202,7 @@ export default function MasterMahasiswaPage() {
                   <label style={labelStyle}>Kelas</label>
                   <select value={draft.kelas} onChange={(e) => setDraft({ ...draft, kelas: e.target.value })} style={inputStyle}>
                     <option value="-">— (belum tercatat)</option>
-                    <option value="REG A">REG A</option>
-                    <option value="REG B">REG B</option>
-                    <option value="REG C">REG C</option>
-                    <option value="REG D">REG D</option>
+                    {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
                   </select>
                 </div>
               </div>

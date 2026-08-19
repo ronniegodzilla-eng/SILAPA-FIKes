@@ -11,7 +11,7 @@ import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } 
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 import { updateSubmissionJumlah, type ImportLengkapRow } from '@/lib/firestore/data';
-import { KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
+import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
 const TH: React.CSSProperties = {
   textAlign: 'left', padding: '12px 16px', fontSize: 11.5, fontWeight: 700,
@@ -694,10 +694,7 @@ export default function DaftarBimbinganPage() {
                   <label style={labelStyle}>Kelas</label>
                   <select value={tambahDraft.kelas} onChange={(e) => setTambahDraft({ ...tambahDraft, kelas: e.target.value })} style={inputStyle}>
                     <option value="-">— (belum tercatat)</option>
-                    <option value="REG A">REG A</option>
-                    <option value="REG B">REG B</option>
-                    <option value="REG C">REG C</option>
-                    <option value="REG D">REG D</option>
+                    {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
                   </select>
                 </div>
               </div>

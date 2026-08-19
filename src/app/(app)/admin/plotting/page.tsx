@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { colors } from '@/lib/theme';
 import { Card } from '@/components/ui';
+import { KELAS_PILIHAN } from '@/lib/types';
 import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
 
 type SortKey = 'nama' | 'prodi' | 'jumlah';
@@ -143,7 +144,7 @@ export default function PlottingPage() {
             <label style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, display: 'block', marginBottom: 6 }}>Kelas</label>
             <select value={bulkKelas} onChange={(e) => setBulkKelas(e.target.value)} style={selStyle}>
               <option value="">Semua</option>
-              {['REG A', 'REG B', 'REG C', 'REG D'].map((k) => <option key={k} value={k}>{k}</option>)}
+              {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </div>
           <div style={{ minWidth: 110 }}>

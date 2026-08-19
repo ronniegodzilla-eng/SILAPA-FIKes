@@ -8,7 +8,7 @@ import { downloadTemplateMahasiswa, downloadTemplateNilai } from '@/lib/xlsx-tem
 import { colors } from '@/lib/theme';
 import { Icon, Card } from '@/components/ui';
 import { PaginationBar, SortableTh, TableSearch, useTableSort, usePagination } from '@/components/table-tools';
-import type { MahasiswaRecord } from '@/lib/types';
+import { KELAS_PILIHAN, type MahasiswaRecord } from '@/lib/types';
 
 type SortKey = 'npm' | 'nama' | 'c3' | 'c4' | 'c5' | 'valid';
 
@@ -36,7 +36,7 @@ const PRODI = ['K3', 'KL', 'S2KM'];
 // Kelas boleh dikosongkan: data SIAKAD asli tidak selalu memuat kelas, dan
 // tipe Kelas memang punya nilai '-' untuk "tanpa kelas". Sel kosong dinormalkan
 // ke '-' alih-alih menggagalkan barisnya.
-const KELAS = ['REG A', 'REG B', 'REG C', 'REG D'];
+const KELAS: string[] = [...KELAS_PILIHAN];
 const KELAS_KOSONG = '-';
 
 /** Kolom wajib per mode — file tanpa kolom ini ditolak sebelum preview. */

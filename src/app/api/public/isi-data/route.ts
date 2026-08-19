@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { validateToken } from '@/lib/token-isi-data';
 import { computeStatusPengisian } from '@/lib/compute';
-import { SEMKES_MAX } from '@/lib/types';
+import { KELAS_PILIHAN, SEMKES_MAX } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,13 +22,14 @@ export const dynamic = 'force-dynamic';
  * POST {token, npm, patch}  → simpan perubahan (whitelist ketat di server)
  */
 
-const MASTER_WRITABLE = new Set(['pkkmb', 'pkkmbBukti', 'toefl', 'toeflBukti', 'esq', 'esqBukti', 'semkes']);
+const MASTER_WRITABLE = new Set(['pkkmb', 'pkkmbBukti', 'toefl', 'toeflBukti', 'esq', 'esqBukti', 'semkes', 'kelas']);
 
 // Bentuk patch yang diterima — apa pun di luar ini DITOLAK (bukan cuma
 // diabaikan) supaya kesalahan/percobaan tak terduga terlihat jelas di log,
 // bukan diam-diam gagal.
 const ALLOWED_SHAPE: Record<string, true | Record<string, true>> = {
   status: true,
+  kelas: true,
   pkkmb: true, pkkmbBukti: true,
   toefl: true, toeflBukti: true,
   esq: true, esqBukti: true,
@@ -69,7 +70,10 @@ const RETIRED_KEYS = new Set(['semkesCount']);
  * Dibedakan dari field "tidak dikenal" biasa supaya percobaan mengubahnya
  * mendapat pesan tegas — bukan disamarkan jadi "halaman versi lama".
  */
-const LOCKED_KEYS = new Set(['npm', 'nama', 'prodi', 'angkatan', 'kelas', 'dosenPaUid']);
+// `kelas` sengaja TIDAK di sini: distribusi SIAKAD tidak memuat kelas, jadi
+// hampir semua record masih '-' dan mahasiswanya sendiri yang paling tahu.
+// Identitas yang menentukan SIAPA dan MILIK SIAPA record ini tetap terkunci.
+const LOCKED_KEYS = new Set(['npm', 'nama', 'prodi', 'angkatan', 'dosenPaUid']);
 
 function stripRetiredKeys(patch: any) {
   for (const key of RETIRED_KEYS) delete patch[key];
@@ -261,6 +265,16 @@ export async function POST(req: NextRequest) {
       if (!String(e.bukti ?? '').trim()) {
         return new Response(`Bukti sertifikat wajib diunggah untuk semkes "${String(e.judul).slice(0, 60)}".`, { status: 400 });
       }
+    }
+  }
+
+  // ── Kelas harus salah satu pilihan resmi (atau '-' = belum tercatat) ──
+  // Nilai ini dipakai untuk menyaring dan memindah bimbingan massal, jadi
+  // teks bebas dari klien tidak boleh masuk begitu saja.
+  if ('kelas' in patch) {
+    const k = patch.kelas;
+    if (k !== '-' && !KELAS_PILIHAN.includes(k)) {
+      return new Response(`Kelas harus salah satu dari ${KELAS_PILIHAN.join(', ')}.`, { status: 400 });
     }
   }
 
