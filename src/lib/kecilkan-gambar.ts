@@ -1,0 +1,58 @@
+'use client';
+
+/**
+ * Perkecil foto bukti sebelum diunggah.
+ *
+ * Bukti KRS/KHS hampir selalu difoto dengan kamera HP: berkasnya 4–8MB,
+ * jauh di atas batas 3MB, padahal isinya cuma satu lembar yang perlu terbaca.
+ * Tanpa ini mahasiswa mentok di "Ukuran file maksimal 3MB" tanpa cara mudah
+ * memperkecilnya dari HP. Payload yang lebih kecil sekaligus menurunkan
+ * peluang Apps Script kehabisan waktu — penyebab kegagalan unggah yang
+ * ditangani di lib/apps-script-upload.ts.
+ *
+ * PDF tidak disentuh. Bila apa pun gagal, berkas ASLI yang dikembalikan —
+ * perilakunya tidak pernah lebih buruk daripada sebelum ada fungsi ini.
+ */
+
+/** Di bawah ini tidak perlu diapa-apakan. */
+const AMAN_BYTES = 1024 * 1024;
+/** Sisi terpanjang setelah diperkecil — cukup untuk membaca teks KHS/KRS. */
+const SISI_MAKS = 2000;
+const MUTU = 0.82;
+
+export async function kecilkanGambarBilaPerlu(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  if (file.size <= AMAN_BYTES) return file;
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
+
+  try {
+    // imageOrientation 'from-image' WAJIB: tanpa itu foto dari kamera HP yang
+    // punya metadata rotasi akan tergambar miring/terbalik ke canvas, dan
+    // bukti yang tidak terbaca lebih buruk daripada berkas yang kebesaran.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const skala = Math.min(1, SISI_MAKS / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * skala);
+    const h = Math.round(bitmap.height * skala);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    // Latar putih supaya PNG transparan tidak jadi hitam saat dijadikan JPEG.
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', MUTU)
+    );
+    if (!blob || blob.size >= file.size) return file; // tidak membantu — pakai asli
+
+    const namaDasar = file.name.replace(/\.[^.]+$/, '');
+    return new File([blob], `${namaDasar}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}

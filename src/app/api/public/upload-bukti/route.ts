@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { unggahLewatAppsScript } from '@/lib/apps-script-upload';
 import { validateToken } from '@/lib/token-isi-data';
 
 export const runtime = 'nodejs';
@@ -42,24 +43,7 @@ export async function POST(req: NextRequest) {
     return new Response('Mahasiswa ini bukan bimbingan dosen pemilik link.', { status: 403 });
   }
 
-  const uploadUrl = process.env.APPS_SCRIPT_UPLOAD_URL;
-  const secret = process.env.APPS_SCRIPT_UPLOAD_SECRET;
-  if (!uploadUrl || !secret) {
-    return new Response('Upload bukti belum dikonfigurasi di server (lihat apps-script/README.md).', { status: 500 });
-  }
-
-  try {
-    const res = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ secret, npm, label, filename, mimeType, data }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      return new Response(json.error ?? 'Gagal mengunggah bukti.', { status: 502 });
-    }
-    return Response.json({ ok: true, url: json.url });
-  } catch (e: any) {
-    return new Response(`Gagal menghubungi layanan upload: ${e?.message ?? e}`, { status: 502 });
-  }
+  const hasil = await unggahLewatAppsScript({ npm, label, filename, mimeType, data });
+  if (!hasil.ok) return new Response(hasil.message, { status: hasil.status });
+  return Response.json({ ok: true, url: hasil.url });
 }
