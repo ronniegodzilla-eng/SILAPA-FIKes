@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { colors } from '@/lib/theme';
@@ -50,6 +50,50 @@ const TAHAP_ENUM: [string, string][] = [
   ['bimbingan_skripsi', 'Bimbingan skripsi'], ['sidang', 'Sidang'], ['lulus', 'Lulus'],
 ];
 
+/**
+ * Draft lokal isian mahasiswa.
+ *
+ * Halaman ini tidak punya autosave seperti form dosen — satu-satunya penulisan
+ * ke server terjadi saat tombol Simpan ditekan. Kalau jaringan putus di detik
+ * itu (kejadian nyata: mahasiswa mengisi dari HP dengan sinyal buruk), seluruh
+ * isian hilang begitu halaman ditutup atau tab dibuang sistem. Draft disimpan
+ * di perangkat mahasiswa sendiri, dipulihkan saat ia kembali, dan dibuang
+ * begitu server mengonfirmasi penyimpanan.
+ */
+const DRAFT_PREFIX = 'silapa_isidata_draft_';
+const draftKey = (npm: string) => `${DRAFT_PREFIX}${npm}`;
+
+function bacaDraft(npm: string): { form: FormState; waktu: string } | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(npm));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.form) return null;
+    return { form: parsed.form as FormState, waktu: String(parsed.waktu ?? '') };
+  } catch {
+    return null; // localStorage diblokir / isi rusak — jalan tanpa draft.
+  }
+}
+
+function tulisDraft(npm: string, form: FormState) {
+  try {
+    window.localStorage.setItem(
+      draftKey(npm),
+      JSON.stringify({ form, waktu: new Date().toISOString() })
+    );
+  } catch {
+    // Kuota penuh atau mode privat — abaikan, form tetap bisa dipakai.
+  }
+}
+
+function hapusDraft(npm: string) {
+  try {
+    window.localStorage.removeItem(draftKey(npm));
+  } catch {
+    // tidak apa-apa
+  }
+}
+
 export default function IsiDataMandiriPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -73,6 +117,13 @@ export default function IsiDataMandiriPage() {
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
+  /** Waktu draft lokal yang sedang dipulihkan — '' bila isian berasal dari server. */
+  const [draftDipulihkan, setDraftDipulihkan] = useState('');
+  /** Salinan isian apa adanya dari server, sebagai pembanding "ada perubahan
+   * yang belum tersimpan atau tidak". Tanpa ini, draft ikut ditulis meski
+   * mahasiswa tidak mengubah apa pun — dan kunjungan berikutnya menampilkan
+   * pemberitahuan pemulihan yang membingungkan. */
+  const baselineServer = useRef<string>('');
 
   useEffect(() => {
     fetch(`/api/public/isi-data?token=${encodeURIComponent(token)}`)
@@ -106,7 +157,7 @@ export default function IsiDataMandiriPage() {
       setSemesterKe(data.semesterKe);
       setSavedSks(data.akademik.sksKrs);
       setSavedIp(data.akademik.ipKhs);
-      setForm({
+      const dariServer: FormState = {
         status: data.status,
         pkkmb: data.pkkmb, pkkmbBukti: data.pkkmbBukti,
         toefl: data.toefl, toeflBukti: data.toeflBukti,
@@ -117,12 +168,35 @@ export default function IsiDataMandiriPage() {
         skripsi: data.skripsi,
         permasalahan: data.permasalahan,
         rekomendasi: data.rekomendasi,
-      });
+      };
+      // Draft hanya dipulihkan bila record belum dikunci — kalau sudah
+      // dikunci, isian di layar harus apa adanya seperti di server.
+      baselineServer.current = JSON.stringify(dariServer);
+      const draft = data.dikunciMandiri ? null : bacaDraft(npm);
+      setForm(draft?.form ?? dariServer);
+      setDraftDipulihkan(draft ? draft.waktu : '');
       setPhase('form');
     } catch (e: any) {
       setErrorMsg(e?.message || 'Gagal memuat data mahasiswa.');
       setPhase('error');
     }
+  }
+
+  // Setiap perubahan langsung diendapkan ke perangkat mahasiswa, bukan
+  // menunggu tombol Simpan — justru saat Simpan-lah jaringan bisa gagal.
+  useEffect(() => {
+    if (phase !== 'form' || !form || !selectedNpm || terkunci) return;
+    // Hanya simpan bila memang BERBEDA dari data server; kalau sama persis,
+    // draft justru dibuang supaya tidak ada "pemulihan" palsu nanti.
+    if (JSON.stringify(form) === baselineServer.current) hapusDraft(selectedNpm);
+    else tulisDraft(selectedNpm, form);
+  }, [form, phase, selectedNpm, terkunci]);
+
+  function buangDraft() {
+    if (!selectedNpm) return;
+    hapusDraft(selectedNpm);
+    setDraftDipulihkan('');
+    pilihMahasiswa(selectedNpm);
   }
 
   function kembaliKePilih() {
@@ -182,9 +256,15 @@ export default function IsiDataMandiriPage() {
         body: JSON.stringify({ token, npm: selectedNpm, patch: form }),
       });
       if (!res.ok) throw new Error(await res.text());
+      hapusDraft(selectedNpm);
+      setDraftDipulihkan('');
       setPhase('saved');
     } catch (e: any) {
-      setSaveErr(e?.message || 'Gagal menyimpan data.');
+      setSaveErr(
+        `${e?.message || 'Gagal menyimpan data — periksa koneksi Anda.'} ` +
+          'Isian Anda tersimpan sementara di perangkat ini, jadi tidak hilang. ' +
+          'Coba tekan Simpan lagi setelah sinyal membaik.'
+      );
     } finally {
       setSaving(false);
     }
@@ -270,6 +350,25 @@ export default function IsiDataMandiriPage() {
 
         {phase === 'form' && !terkunci && form && identitas && (
           <>
+            {draftDipulihkan && (
+              <Card style={{ background: colors.amberBg, border: `1px solid ${colors.amberText}` }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 4 }}>
+                  Isian Anda yang belum sempat tersimpan sudah dipulihkan
+                </span>
+                <span style={{ fontSize: 11.5, color: colors.muted, lineHeight: 1.6, display: 'block' }}>
+                  Tersimpan sementara di HP Anda pada{' '}
+                  {new Date(draftDipulihkan).toLocaleString('id-ID')} — belum masuk ke sistem.
+                  Periksa kembali isinya, lalu tekan <b>Simpan</b> di bawah agar benar-benar terkirim.
+                </span>
+                <button
+                  onClick={buangDraft}
+                  style={{ marginTop: 10, padding: '8px 14px', borderRadius: 9, border: `1px solid ${colors.border}`, background: colors.surface, fontSize: 12, fontWeight: 700, color: colors.ink, cursor: 'pointer' }}
+                >
+                  Buang, muat ulang dari sistem
+                </button>
+              </Card>
+            )}
+
             <Card style={{ background: colors.subtle }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: colors.muted, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
                 Data ini tidak dapat diubah dari sini

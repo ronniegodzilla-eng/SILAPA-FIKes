@@ -42,11 +42,21 @@ export async function validateToken(token: string | null | undefined): Promise<T
 
   const tokenSnap = await db.doc(`tokenIsiData/${token}`).get();
   if (!tokenSnap.exists) {
-    return { ok: false, status: 404, message: 'Link tidak ditemukan — periksa kembali link yang Anda buka.' };
+    return {
+      ok: false,
+      status: 404,
+      message:
+        'Link ini tidak dikenali. Kemungkinan link tersalin tidak utuh, atau dosen PA Anda sudah menggantinya dengan link baru — minta link terbaru di grup bimbingan Anda.',
+    };
   }
   const data = tokenSnap.data() as any;
   if (data.active === false) {
-    return { ok: false, status: 410, message: 'Link ini sudah tidak aktif. Minta dosen PA Anda membuat link baru.' };
+    return {
+      ok: false,
+      status: 410,
+      message:
+        'Link ini sudah diganti dengan link baru oleh dosen PA Anda, jadi tidak berlaku lagi. Minta link terbaru di grup bimbingan Anda — data yang sudah pernah Anda simpan tidak hilang.',
+    };
   }
 
   const periode = await findActivePeriodeAdmin();

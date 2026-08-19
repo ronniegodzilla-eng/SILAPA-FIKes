@@ -183,7 +183,7 @@ export default function DosenDashboardPage() {
         </Card>
       </div>
 
-      <TokenIsiDataCard />
+      <TokenIsiDataCard jumlahBimbingan={recordList.length} />
 
       <FeatureTour steps={DOSEN_TOUR_STEPS} storageKey={`silapa_tour_dosen_${appUser?.uid ?? ''}`} />
     </div>
@@ -196,7 +196,7 @@ export default function DosenDashboardPage() {
  * mahasiswa mengisi datanya sendiri tanpa akun. Membuat link baru langsung
  * mematikan link lama.
  */
-function TokenIsiDataCard() {
+function TokenIsiDataCard({ jumlahBimbingan }: { jumlahBimbingan: number }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -212,6 +212,17 @@ function TokenIsiDataCard() {
 
   async function buatLink() {
     if (busy) return;
+    // Mengganti link akan MEMATIKAN link yang sudah beredar di grup WhatsApp.
+    // Sebelumnya ini hanya satu ketukan pada tombol hijau tepat di bawah
+    // "Salin Link" — dosen yang cuma ingin membagikan ulang linknya bisa
+    // menekannya tanpa sadar, dan mahasiswa yang sedang mengisi langsung
+    // terputus di tengah jalan.
+    if (url) {
+      const yakin = window.confirm(
+        `Ganti link isi data mandiri?\n\nLink yang sudah Anda bagikan ke ${jumlahBimbingan} mahasiswa bimbingan akan LANGSUNG MATI, termasuk bagi yang sedang mengisi saat ini. Mereka harus Anda kirimi link baru.\n\nKalau Anda hanya ingin membagikan ulang, tutup pesan ini lalu tekan "Salin Link".`
+      );
+      if (!yakin) return;
+    }
     setBusy(true);
     setErr('');
     setCopied(false);
@@ -267,13 +278,26 @@ function TokenIsiDataCard() {
               </button>
             </div>
           )}
+          {/* Saat link sudah ada, tombol ini bukan lagi aksi utama melainkan
+              aksi berbahaya (mencabut link yang beredar) — jadi tampil sebagai
+              tombol sekunder bergaris merah, bukan tombol hijau utama. */}
           <button
             onClick={buatLink}
             disabled={busy}
-            style={{ padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}
+            style={
+              url
+                ? { padding: '9px 14px', borderRadius: 9, border: `1px solid ${colors.danger}`, background: colors.surface, color: colors.danger, fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }
+                : { padding: '10px 16px', borderRadius: 9, border: 'none', background: colors.green, color: colors.white, fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }
+            }
           >
-            {busy ? 'Membuat…' : url ? 'Buat Link Baru (link lama langsung mati)' : 'Buat Link'}
+            {busy ? 'Membuat…' : url ? 'Ganti Link (link lama langsung mati)' : 'Buat Link'}
           </button>
+          {url && (
+            <span style={{ display: 'block', marginTop: 8, fontSize: 11.5, color: colors.muted, lineHeight: 1.5 }}>
+              Untuk membagikan ulang, cukup tekan <b>Salin Link</b> — link yang sama tetap berlaku.
+              Ganti link hanya bila linknya bocor ke luar grup bimbingan.
+            </span>
+          )}
           {err && <span style={{ display: 'block', marginTop: 10, fontSize: 12, color: colors.danger, fontWeight: 600 }}>{err}</span>}
         </>
       )}

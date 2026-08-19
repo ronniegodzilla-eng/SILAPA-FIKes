@@ -55,8 +55,20 @@ export async function POST(req: NextRequest) {
 
   // Matikan token lama SETELAH yang baru berhasil dibuat (bukan sebaliknya)
   // supaya tidak ada jeda tanpa link aktif sama sekali kalau terjadi error.
-  if (oldToken) {
-    await db.doc(`tokenIsiData/${oldToken}`).delete().catch(() => {});
+  //
+  // DITANDAI, bukan dihapus. Kalau dokumennya hilang, mahasiswa yang membuka
+  // link lama hanya dapat "Link tidak ditemukan — periksa kembali link yang
+  // Anda buka", yang menyesatkan: seolah ia salah membuka, padahal linknya
+  // memang sudah diganti. Dokumen tinggal (tanpa data pribadi apa pun) supaya
+  // pesannya bisa menyebutkan sebab yang sebenarnya.
+  if (oldToken && oldToken !== newToken) {
+    await db
+      .doc(`tokenIsiData/${oldToken}`)
+      .set(
+        { active: false, replacedBy: newToken, replacedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      )
+      .catch(() => {});
   }
 
   return Response.json({ token: newToken, url: `${req.nextUrl.origin}/isi-data/${newToken}` });
