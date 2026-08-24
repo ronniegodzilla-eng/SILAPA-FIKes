@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from './auth-context';
+import { apiFetch } from './download';
 import { computeStatusPengisian } from './compute';
 import * as data from './firestore/data';
 import type {
@@ -19,6 +20,7 @@ import type {
   PeriodeHistoryEntry,
   PeriodeStatus,
   StatusKirim,
+  TandaTangan,
 } from './types';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -299,43 +301,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [periode]
   );
 
+  /**
+   * Ketiga transisi status berjalan lewat /api/laporan/status, bukan tulis
+   * langsung ke Firestore: di situlah tanda tangan elektronik dibubuhkan
+   * dengan jam server. Security Rules kini menolak klien yang mengubah
+   * `status` atau menyentuh field tanda tangan.
+   */
+  const ubahStatusLaporan = useCallback(
+    async (aksi: 'kirim' | 'verifikasi' | 'kembalikan', dosenUid: string, catatan?: string) => {
+      if (!periode) return null;
+      return apiFetch<{ ok: true; status: StatusKirim; ttdDosen?: TandaTangan; ttdWadek?: TandaTangan }>(
+        '/api/laporan/status',
+        { method: 'POST', body: { aksi, periodeId: periode.id, dosenUid, catatan } }
+      );
+    },
+    [periode]
+  );
+
   const submitDosenLaporan = useCallback(
     async (dosenNama: string) => {
       if (!periode || !appUser) return;
-      // Dosen targets their own submission by uid (Security Rules provability).
-      await data.updateSubmissionStatus(periode.id, { dosenUid: appUser.uid }, 'dikirim');
-      // Stempel submittedAt di tiap laporan (PRD §4.4) — non-fatal bila gagal.
-      await data.markLaporanSubmitted(periode.id, appUser.uid).catch(() => {});
+      const r = await ubahStatusLaporan('kirim', appUser.uid);
       setDosenRoster((prev) =>
-        prev.map((d) => (d.nama === dosenNama ? { ...d, statusKirim: 'dikirim' } : d))
+        prev.map((d) =>
+          d.dosenUid === appUser.uid
+            ? { ...d, statusKirim: 'dikirim', ttdDosen: r?.ttdDosen ?? null, ttdWadek: null }
+            : d
+        )
       );
     },
-    [periode, appUser]
+    [periode, appUser, ubahStatusLaporan]
   );
 
   const verifTerima = useCallback(
     async (dosenNama: string) => {
       if (!periode) return;
-      await data.updateSubmissionStatus(periode.id, { nama: dosenNama }, 'diverifikasi');
+      const target = dosenRoster.find((d) => d.nama === dosenNama);
+      if (!target) return;
+      const r = await ubahStatusLaporan('verifikasi', target.dosenUid);
       setDosenRoster((prev) =>
-        prev.map((d) => (d.nama === dosenNama ? { ...d, statusKirim: 'diverifikasi' } : d))
+        prev.map((d) =>
+          d.dosenUid === target.dosenUid
+            ? { ...d, statusKirim: 'diverifikasi', ttdWadek: r?.ttdWadek ?? null }
+            : d
+        )
       );
       // Rekap fakultas (W1) tidak lagi akurat — recompute cache di latar belakang.
       data.recomputeAndCacheRekap(periode.id).catch(() => {});
     },
-    [periode]
+    [periode, dosenRoster, ubahStatusLaporan]
   );
 
   const verifKembalikan = useCallback(
     async (dosenNama: string, catatan: string) => {
       if (!periode) return;
-      await data.updateSubmissionStatus(periode.id, { nama: dosenNama }, 'dikembalikan', catatan);
+      const target = dosenRoster.find((d) => d.nama === dosenNama);
+      if (!target) return;
+      await ubahStatusLaporan('kembalikan', target.dosenUid, catatan);
       setDosenRoster((prev) =>
-        prev.map((d) => (d.nama === dosenNama ? { ...d, statusKirim: 'dikembalikan' } : d))
+        prev.map((d) =>
+          d.dosenUid === target.dosenUid
+            ? { ...d, statusKirim: 'dikembalikan', catatanWadek: catatan, ttdDosen: null, ttdWadek: null }
+            : d
+        )
       );
       data.recomputeAndCacheRekap(periode.id).catch(() => {});
     },
-    [periode]
+    [periode, dosenRoster, ubahStatusLaporan]
   );
 
   const movePlotting = useCallback(

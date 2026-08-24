@@ -225,10 +225,43 @@ async function main() {
     assertSucceeds(setDoc(doc(admin, 'submissions/2025-genap_dosenB'), { periodeId: '2025-genap', dosenUid: 'dosenB', status: 'draft' })));
   await check('dosen BUKAN pemilik update submission → deny', () =>
     assertFails(updateDoc(doc(dosenB, 'submissions/2025-genap_dosenA'), { status: 'dikirim' })));
-  await check('dosen pemilik update submission (kirim) di periode terbuka → allow', () =>
-    assertSucceeds(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { status: 'dikirim' })));
-  await check('wadek update submission (verifikasi) → allow', () =>
-    assertSucceeds(updateDoc(doc(wadek, 'submissions/2025-genap_dosenA'), { status: 'diverifikasi' })));
+  // Perpindahan status kini HANYA lewat /api/laporan/status (Admin SDK), sebab
+  // di situlah tanda tangan elektronik dibubuhkan dengan jam server.
+  await check('dosen pemilik ubah status submission dari klien → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { status: 'dikirim' })));
+  await check('wadek ubah status submission dari klien → deny', () =>
+    assertFails(updateDoc(doc(wadek, 'submissions/2025-genap_dosenA'), { status: 'diverifikasi' })));
+  await check('dosen pemilik ubah field non-status submission → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { jumlah: 42 })));
+  await check('admin ubah status submission (jalan darurat) → allow', () =>
+    assertSucceeds(updateDoc(doc(admin, 'submissions/2025-genap_dosenA'), { status: 'draft' })));
+
+  // Tanda tangan tidak boleh dibubuhkan siapa pun dari klien — kalau jebol,
+  // seorang dosen bisa memalsukan pengesahan Wakil Dekan I.
+  const ttdPalsu = { uid: 'dosenA', nama: 'Dosen A', jabatan: 'Wakil Dekan I', waktu: '2026-01-01T00:00:00.000Z', kode: 'PALSU' };
+  await check('dosen bubuhkan ttdDosen dari klien → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { ttdDosen: ttdPalsu })));
+  await check('dosen bubuhkan ttdWadek dari klien → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'submissions/2025-genap_dosenA'), { ttdWadek: ttdPalsu })));
+  await check('wadek bubuhkan ttdWadek dari klien → deny', () =>
+    assertFails(updateDoc(doc(wadek, 'submissions/2025-genap_dosenA'), { ttdWadek: ttdPalsu })));
+  await check('admin bubuhkan tanda tangan dari klien → deny', () =>
+    assertFails(updateDoc(doc(admin, 'submissions/2025-genap_dosenA'), { ttdWadek: ttdPalsu })));
+
+  // Laporan beku setelah ditandatangani & dikirim.
+  console.log('\nlaporan terkunci setelah ditandatangani');
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'submissions/2025-genap_dosenA'), { status: 'dikirim' }, { merge: true });
+  });
+  await check('dosen sunting laporan setelah dikirim → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { permasalahan: 'diubah setelah ttd' })));
+  await check('admin sunting laporan setelah dikirim → deny', () =>
+    assertFails(updateDoc(doc(admin, 'laporan/2025-genap_1001'), { permasalahan: 'diubah admin' })));
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'submissions/2025-genap_dosenA'), { status: 'dikembalikan' }, { merge: true });
+  });
+  await check('dosen sunting laporan setelah dikembalikan WD1 → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'laporan/2025-genap_1001'), { permasalahan: 'diperbaiki' })));
 
   console.log('\nrekapCache/{periodeId}');
   await check('dosen baca rekapCache → deny', () => assertFails(getDocFromServer(doc(dosenA, 'rekapCache/2025-genap'))));

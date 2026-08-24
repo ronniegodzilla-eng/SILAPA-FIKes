@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useData } from '@/lib/data-context';
+import { RiwayatTervalidasi } from '@/components/RiwayatTervalidasi';
 import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { fetchMahasiswaRecords } from '@/lib/firestore/data';
@@ -370,6 +371,9 @@ export default function WadekDashboardPage() {
 
       {/* KRS flag */}
       <KrsFlagTable rows={agg.krsFlag} />
+
+      {/* Riwayat pengesahan seluruh dosen — tanpa dosenUid = lintas dosen. */}
+      <RiwayatTervalidasi />
 
       {drilldown && (
         <DrilldownModal

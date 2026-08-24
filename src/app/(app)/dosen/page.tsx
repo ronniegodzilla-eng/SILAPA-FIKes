@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useData } from '@/lib/data-context';
+import { RiwayatTervalidasi } from '@/components/RiwayatTervalidasi';
 import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { computeDosenStats, computeDosenRekap } from '@/lib/compute';
@@ -184,6 +185,8 @@ export default function DosenDashboardPage() {
       </div>
 
       <TokenIsiDataCard jumlahBimbingan={recordList.length} />
+
+      <RiwayatTervalidasi dosenUid={appUser?.uid} />
 
       <FeatureTour steps={DOSEN_TOUR_STEPS} storageKey={`silapa_tour_dosen_${appUser?.uid ?? ''}`} />
     </div>

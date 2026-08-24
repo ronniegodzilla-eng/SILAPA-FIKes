@@ -288,6 +288,30 @@ export interface PeriodeHistoryEntry {
   status: PeriodeStatus;
 }
 
+/**
+ * Tanda tangan elektronik pada laporan periode.
+ *
+ * Bukan gambar tanda tangan, melainkan stempel tergenerate: siapa, jabatan
+ * apa, kapan, dan kode verifikasi yang tercetak bersama QR di PDF. Gambar
+ * tanda tangan dapat disalin siapa pun yang menerima dokumennya; stempel ini
+ * tidak, dan keasliannya bisa dicocokkan kembali ke sistem.
+ *
+ * HANYA ditulis server (/api/laporan/status memakai Admin SDK). Waktu diambil
+ * dari jam server, bukan jam perangkat penandatangan — jam klien bisa disetel
+ * sesuka hati, dan tanda tangan bertanggal palsu lebih buruk daripada tidak
+ * ada tanda tangan. Security Rules menolak klien mana pun yang menyentuh
+ * field ini.
+ */
+export interface TandaTangan {
+  uid: string;
+  nama: string;
+  jabatan: string;
+  /** ISO string dari jam server. */
+  waktu: string;
+  /** Kode verifikasi unik yang tercetak di PDF. */
+  kode: string;
+}
+
 /** submissions/{periodeId}_{dosenUid} + roster convenience */
 export interface DosenRosterEntry {
   dosenUid: string;
@@ -296,6 +320,22 @@ export interface DosenRosterEntry {
   jumlah: number;
   statusKirim: StatusKirim;
   catatanWadek?: string;
+  /** Terisi saat dosen mengirim laporan ke Wakil Dekan I. */
+  ttdDosen?: TandaTangan | null;
+  /** Terisi saat Wakil Dekan I memvalidasi. Keduanya dihapus bila dikembalikan. */
+  ttdWadek?: TandaTangan | null;
+}
+
+/** Satu baris riwayat laporan periode yang sudah divalidasi Wakil Dekan I. */
+export interface RiwayatLaporanPeriode {
+  periodeId: string;
+  periodeLabel: string;
+  dosenUid: string;
+  dosenNama: string;
+  prodi: string;
+  jumlah: number;
+  ttdDosen: TandaTangan | null;
+  ttdWadek: TandaTangan | null;
 }
 
 /** One row of laporan history for a mahasiswa across periodes (D4). */

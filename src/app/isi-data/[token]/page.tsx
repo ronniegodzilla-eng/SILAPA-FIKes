@@ -113,6 +113,12 @@ export default function IsiDataMandiriPage() {
   // Nilai SKS/IP TERSIMPAN saat form dimuat — dipakai untuk deteksi "berubah"
   // di sisi klien (server tetap jadi sumber kebenaran, validasi ini cuma UX).
   const [terkunci, setTerkunci] = useState(false);
+  /** Alasan spesifik bila terkuncinya karena laporan sudah dikirim/disahkan. */
+  const [alasanTerkunci, setAlasanTerkunci] = useState('');
+  /** Periode yang laporannya sudah disahkan WD1 dan boleh diunduh mahasiswa. */
+  const [riwayatUnduh, setRiwayatUnduh] = useState<
+    { periodeId: string; periodeLabel: string; disahkanPada: string | null }[]
+  >([]);
   const [savedSks, setSavedSks] = useState<number | null>(null);
   const [savedIp, setSavedIp] = useState<number | null>(null);
 
@@ -155,6 +161,13 @@ export default function IsiDataMandiriPage() {
       const data = await res.json();
       setIdentitas(data.identitas);
       setTerkunci(!!data.dikunciMandiri);
+      setAlasanTerkunci(data.alasanTerkunci ?? '');
+      // Daftar unduhan diambil terpisah dan tidak boleh menggagalkan form:
+      // mahasiswa tetap harus bisa mengisi walau daftar ini gagal dimuat.
+      fetch(`/api/public/laporan-saya?token=${encodeURIComponent(token)}&npm=${encodeURIComponent(npm)}`)
+        .then((r) => (r.ok ? r.json() : { daftar: [] }))
+        .then((d) => setRiwayatUnduh(d.daftar ?? []))
+        .catch(() => setRiwayatUnduh([]));
       setSemesterKe(data.semesterKe);
       setSavedSks(data.akademik.sksKrs);
       setSavedIp(data.akademik.ipKhs);
@@ -332,14 +345,47 @@ export default function IsiDataMandiriPage() {
           </Card>
         )}
 
+        {phase === 'form' && identitas && riwayatUnduh.length > 0 && (
+          <Card>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 4 }}>
+              Laporan Pembimbing Akademik Anda
+            </span>
+            <span style={{ fontSize: 12, color: colors.muted, lineHeight: 1.6, display: 'block', marginBottom: 12 }}>
+              Periode yang laporannya sudah disahkan Wakil Dekan I. Berkas memuat tanda
+              tangan elektronik dosen PA dan Wakil Dekan I beserta kode verifikasinya.
+            </span>
+            {riwayatUnduh.map((r) => (
+              <div
+                key={r.periodeId}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderTop: `1px solid ${colors.rowBorder}`, flexWrap: 'wrap' }}
+              >
+                <div style={{ minWidth: 180 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.ink, display: 'block' }}>{r.periodeLabel}</span>
+                  {r.disahkanPada && (
+                    <span style={{ fontSize: 11, color: colors.faint }}>
+                      Disahkan {new Date(r.disahkanPada).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+                <a
+                  href={`/api/public/laporan-saya?token=${encodeURIComponent(token)}&npm=${encodeURIComponent(selectedNpm)}&periodeId=${encodeURIComponent(r.periodeId)}`}
+                  style={{ fontSize: 12.5, fontWeight: 700, color: colors.green, textDecoration: 'underline' }}
+                >
+                  Unduh PDF ↓
+                </a>
+              </div>
+            ))}
+          </Card>
+        )}
+
         {phase === 'form' && terkunci && identitas && (
           <Card>
             <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 6 }}>
               Data {identitas.nama} sudah terkunci
             </span>
             <span style={{ fontSize: 13, color: colors.muted, lineHeight: 1.6, display: 'block', marginBottom: 16 }}>
-              Data untuk NPM {identitas.npm} sudah pernah disimpan, jadi dikunci agar tidak dapat diubah
-              orang lain. Bila masih ada yang perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.
+              {alasanTerkunci ||
+                `Data untuk NPM ${identitas.npm} sudah pernah disimpan, jadi dikunci agar tidak dapat diubah orang lain. Bila masih ada yang perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.`}
             </span>
             <button
               onClick={kembaliKePilih}

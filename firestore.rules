@@ -28,6 +28,15 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/periode/$(periodeId)).data.status == 'dikunci';
     }
 
+    // Laporan yang SUDAH ditandatangani dosen (dikirim) atau disahkan Wakil
+    // Dekan I (diverifikasi) tidak boleh berubah lagi — tanda tangan di atas
+    // data yang masih bisa disunting tidak ada artinya. Terbuka kembali bila
+    // Wakil Dekan I mengembalikannya, yang sekaligus mencabut tanda tangan.
+    function laporanDitandatangani(periodeId, dosenUid) {
+      let sub = /databases/$(database)/documents/submissions/$(periodeId + '_' + dosenUid);
+      return exists(sub) && get(sub).data.status in ['dikirim', 'diverifikasi'];
+    }
+
     // IPK must be null or within 0.00–4.00.
     function ipValid(ak) {
       return ak.ipKhs == null || (ak.ipKhs is number && ak.ipKhs >= 0 && ak.ipKhs <= 4);
@@ -114,7 +123,13 @@ service cloud.firestore {
       // Dosen edits only their own, only while the periode is unlocked,
       // and IPK stays in range. Admin pun tidak boleh memvalidasi pengunduran
       // diri — itu wewenang Wakil Dekan I lewat route server.
+      //
+      // Berlaku bagi admin juga: begitu laporan ditandatangani dan dikirim,
+      // koreksi harus lewat Wakil Dekan I yang mengembalikannya. Route server
+      // (Admin SDK) melewati aturan ini, jadi pengembalian tetap bisa membuka
+      // kuncinya.
       allow update: if !periodeLocked(resource.data.periodeId)
+        && !laporanDitandatangani(resource.data.periodeId, resource.data.dosenPaUid)
         && pengunduranSah()
         && (isAdmin()
             || (isDosen()
@@ -127,11 +142,19 @@ service cloud.firestore {
       allow read: if isAdmin() || isWadek()
         || (isDosen() && resource.data.dosenUid == request.auth.uid);
       allow create: if isAdmin();
-      // Dosen submit their own; Wadek verifies/returns; Admin maintains
-      // roster counts (plotting/import).
-      allow update: if isAdmin() || isWadek()
-        || (isDosen() && resource.data.dosenUid == request.auth.uid
-            && !periodeLocked(resource.data.periodeId));
+      // Pengiriman dan validasi laporan TIDAK lagi ditulis dari klien: keduanya
+      // membubuhkan tanda tangan elektronik dan harus lewat
+      // /api/laporan/status (Admin SDK, jam server). Karena itu klien tidak
+      // boleh menyentuh field tanda tangan sama sekali, dan hanya admin yang
+      // masih boleh mengubah `status` sebagai jalan darurat. Dosen/wadek tetap
+      // boleh menulis field lain (mis. jumlah bimbingan saat plotting).
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['ttdDosen', 'ttdWadek'])
+        && (isAdmin()
+            || (request.resource.data.status == resource.data.status
+                && (isWadek()
+                    || (isDosen() && resource.data.dosenUid == request.auth.uid
+                        && !periodeLocked(resource.data.periodeId)))));
     }
 
     // ── rekapCache (PRD §8): agregat fakultas dihitung ulang oleh app ──

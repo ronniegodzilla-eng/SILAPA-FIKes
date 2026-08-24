@@ -17,6 +17,7 @@ import type {
   DosenRosterEntry,
   PengunduranDiri,
   Prodi,
+  RiwayatLaporanPeriode,
   StatusLaporan,
   MahasiswaRecord,
   SemkesEntry,
@@ -446,8 +447,55 @@ export async function fetchDosenRoster(
       jumlah: s.jumlah,
       statusKirim: s.status as StatusKirim,
       catatanWadek: s.catatanWadek ?? '',
+      ttdDosen: s.ttdDosen ?? null,
+      ttdWadek: s.ttdWadek ?? null,
     }))
     .sort((a, b) => a.nama.localeCompare(b.nama));
+}
+
+/**
+ * Riwayat laporan periode yang SUDAH divalidasi Wakil Dekan I.
+ *
+ * Berbeda dari fetchPeriodeHistory yang menyaring periode ber-status
+ * 'dikunci': yang dicari di sini adalah pengesahan per dosen per periode,
+ * yang bisa terjadi jauh sebelum periodenya ditutup.
+ *
+ * Dosen HARUS memanggil dengan dosenUid miliknya — Security Rules hanya
+ * mengizinkan dosen membaca submission miliknya sendiri, dan query tanpa
+ * filter itu tidak dapat dibuktikan sah.
+ */
+export async function fetchRiwayatTervalidasi(
+  opts?: { dosenUid?: string }
+): Promise<RiwayatLaporanPeriode[]> {
+  const db = getDbOrThrow();
+  const dasar = [collection(db, 'submissions'), where('status', '==', 'diverifikasi')] as const;
+  const q = opts?.dosenUid
+    ? query(dasar[0], dasar[1], where('dosenUid', '==', opts.dosenUid))
+    : query(dasar[0], dasar[1]);
+  const [snap, periodeSnap] = await Promise.all([getDocs(q), getDocs(collection(db, 'periode'))]);
+
+  const labelPeriode = new Map<string, string>();
+  periodeSnap.docs.forEach((d) => {
+    const p = d.data() as any;
+    labelPeriode.set(d.id, `${p.tahunAkademik} — Semester ${p.semester === 'genap' ? 'Genap' : 'Ganjil'}`);
+  });
+
+  return snap.docs
+    .map((d) => d.data() as any)
+    .map((s) => ({
+      periodeId: String(s.periodeId),
+      periodeLabel: labelPeriode.get(String(s.periodeId)) ?? String(s.periodeId),
+      dosenUid: s.dosenUid ?? '',
+      dosenNama: s.nama ?? '—',
+      prodi: s.prodi ?? '—',
+      jumlah: s.jumlah ?? 0,
+      ttdDosen: s.ttdDosen ?? null,
+      ttdWadek: s.ttdWadek ?? null,
+    }))
+    .sort(
+      (a, b) =>
+        b.periodeId.localeCompare(a.periodeId) || a.dosenNama.localeCompare(b.dosenNama)
+    );
 }
 
 export async function updateSubmissionStatus(

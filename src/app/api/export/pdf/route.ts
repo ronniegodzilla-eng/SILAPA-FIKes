@@ -133,8 +133,14 @@ export async function GET(req: NextRequest) {
         .map((d) => d.data() as any)
         .find((u) => u.aktif !== false)?.nama as string | undefined) ?? '';
 
-    // QR verifikasi + logo.
-    const verifikasiKode = `SILAPA/${periodeId}/${sub.dosenUid}`.toUpperCase().slice(0, 48);
+    // QR verifikasi + logo. Bila laporan sudah ditandatangani, kode pada QR
+    // memakai kode tanda tangan Wakil Dekan I (atau dosen bila belum disahkan)
+    // supaya yang diverifikasi adalah pengesahannya, bukan sekadar identitas
+    // dokumen.
+    const ttdDosen = (sub.ttdDosen ?? null) as any;
+    const ttdWadek = (sub.ttdWadek ?? null) as any;
+    const verifikasiKode =
+      ttdWadek?.kode ?? ttdDosen?.kode ?? `SILAPA/${periodeId}/${sub.dosenUid}`.toUpperCase().slice(0, 48);
     const qrDataUrl = await QRCode.toDataURL(
       JSON.stringify({ sistem: 'SILAPA-FIKes', periode: periodeId, dosen: dosenNama, kode: verifikasiKode }),
       { margin: 1, width: 256 }
@@ -150,6 +156,8 @@ export async function GET(req: NextRequest) {
           dosenNama,
           dosenProdi: sub.prodi ?? '—',
           wadekNama,
+          ttdDosen,
+          ttdWadek,
           periodeLabel,
           rows,
           qrDataUrl,

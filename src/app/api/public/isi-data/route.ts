@@ -114,6 +114,23 @@ function findUnknownKeys(patch: any): string[] {
  * Setelah disetujui, mahasiswanya sudah bukan bimbingan aktif sama sekali.
  * Mengembalikan pesan penolakan, atau '' bila boleh lanjut.
  */
+/**
+ * Laporan yang sudah ditandatangani dosen dan dikirim ke Wakil Dekan I tidak
+ * boleh berubah lagi dari jalur mana pun — termasuk isi-data mandiri. Kalau
+ * tidak, tanda tangan berada di atas data yang sudah bergeser.
+ */
+async function pesanSudahDikirim(db: any, periodeId: string, dosenUid: string): Promise<string> {
+  const sub = await db.doc(`submissions/${periodeId}_${dosenUid}`).get();
+  const st = sub.exists ? (sub.data() as any).status : null;
+  if (st === 'dikirim') {
+    return 'Dosen PA Anda sudah mengirim laporan periode ini ke Wakil Dekan I, jadi data tidak dapat diubah lagi. Hubungi dosen PA Anda bila ada koreksi.';
+  }
+  if (st === 'diverifikasi') {
+    return 'Laporan periode ini sudah disahkan Wakil Dekan I — data tidak dapat diubah lagi. Hubungi dosen PA Anda bila ada koreksi.';
+  }
+  return '';
+}
+
 function pesanUndurDiri(master: any, laporan: any): string {
   if (master?.mengundurkanDiri === true) {
     return 'Data Anda sudah ditutup karena pengunduran diri telah disahkan Wakil Dekan I. Hubungi dosen PA Anda bila ini keliru.';
@@ -158,10 +175,16 @@ export async function GET(req: NextRequest) {
   const tolakUndurDiri = pesanUndurDiri(master, laporan);
   if (tolakUndurDiri) return new Response(tolakUndurDiri, { status: 423 });
 
+  // Laporan yang sudah dikirim/disahkan hanya boleh DIBACA — tetap 200 supaya
+  // mahasiswa masih bisa melihat datanya dan mengunduh laporannya, tapi
+  // formnya tampil terkunci.
+  const alasanTerkunci = await pesanSudahDikirim(db, v.ctx.periodeId, v.ctx.dosenUid);
+
   return Response.json({
     identitas: { npm: String(master.npm), nama: master.nama, prodi: master.prodi, angkatan: master.angkatan, kelas: master.kelas },
     semesterKe: laporan.semesterKe ?? 0,
-    dikunciMandiri: !!laporan.dikunciMandiri,
+    dikunciMandiri: !!laporan.dikunciMandiri || !!alasanTerkunci,
+    alasanTerkunci,
     status: laporan.status ?? 'aktif',
     pkkmb: !!master.pkkmb, pkkmbBukti: master.pkkmbBukti ?? '',
     toefl: !!master.toefl, toeflBukti: master.toeflBukti ?? '',
@@ -240,6 +263,9 @@ export async function POST(req: NextRequest) {
   // dapat membukanya kembali lewat form-nya.
   const tolakUndurDiri = pesanUndurDiri(master, laporan);
   if (tolakUndurDiri) return new Response(tolakUndurDiri, { status: 423 });
+
+  const tolakDikirim = await pesanSudahDikirim(db, v.ctx.periodeId, v.ctx.dosenUid);
+  if (tolakDikirim) return new Response(tolakDikirim, { status: 423 });
 
   if (laporan.dikunciMandiri) {
     return new Response(

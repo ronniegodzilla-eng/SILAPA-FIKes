@@ -45,6 +45,13 @@ export interface PdfLaporanRow {
   esqBukti?: string;
 }
 
+export interface TandaTanganPdf {
+  nama: string;
+  jabatan: string;
+  waktu: string;
+  kode: string;
+}
+
 export interface PdfLaporanData {
   dosenNama: string;
   dosenProdi: string;
@@ -52,6 +59,9 @@ export interface PdfLaporanData {
    * wadek1 yang aktif. Kosong bila belum ada, dan sengaja TIDAK diisi nama
    * contoh: dokumen bertanda tangan tidak boleh memuat nama karangan. */
   wadekNama?: string;
+  /** Stempel tanda tangan elektronik; null bila tahap itu belum dilalui. */
+  ttdDosen?: TandaTanganPdf | null;
+  ttdWadek?: TandaTanganPdf | null;
   periodeLabel: string;
   rows: PdfLaporanRow[];
   qrDataUrl: string;
@@ -85,8 +95,19 @@ const s = StyleSheet.create({
   center: { textAlign: 'center' },
   buktiLink: { color: '#0B6E3C', textDecoration: 'underline' },
   pengesahan: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 26 },
-  ttdBlock: { width: 180, alignItems: 'center' },
+  ttdBlock: { width: 190, alignItems: 'center' },
   ttdSpace: { height: 52 },
+  // Stempel tanda tangan elektronik — kotak bergaris putus-putus supaya jelas
+  // ini pengesahan digital, bukan tiruan tanda tangan basah.
+  stempel: {
+    borderWidth: 0.8, borderColor: '#0B6E3C', borderStyle: 'dashed',
+    borderRadius: 3, paddingVertical: 5, paddingHorizontal: 7,
+    marginTop: 4, marginBottom: 4, width: 186, alignItems: 'center',
+  },
+  stempelJudul: { fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#0B6E3C', letterSpacing: 0.4 },
+  stempelBaris: { fontSize: 6, color: '#3C4A40', textAlign: 'center', marginTop: 1.5 },
+  stempelKode: { fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#3C4A40', textAlign: 'center', marginTop: 1.5 },
+  belumTtd: { fontSize: 6.5, color: '#93A398', textAlign: 'center', marginTop: 4 },
   qrBlock: { alignItems: 'center', width: 130 },
   qr: { width: 64, height: 64 },
   qrCaption: { fontSize: 6.5, color: '#5C6B60', textAlign: 'center', marginTop: 3 },
@@ -111,6 +132,52 @@ function CellText({ style, bukti, children }: { style: any; bukti?: string; chil
     );
   }
   return <Text style={style}>{children}</Text>;
+}
+
+/** Waktu tanda tangan dalam zona Indonesia Barat — dokumen dibaca di Batam. */
+export function waktuTtd(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+    }) + ' WIB';
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Blok tanda tangan: stempel elektronik bila sudah ditandatangani, atau ruang
+ * tanda tangan basah bila belum. Sengaja TIDAK menampilkan stempel kosong —
+ * dokumen yang belum disahkan tidak boleh terlihat seperti sudah disahkan.
+ */
+export function BlokTtd({
+  ttd,
+  namaCadangan,
+}: {
+  ttd?: TandaTanganPdf | null;
+  namaCadangan: string;
+}) {
+  if (!ttd) {
+    return (
+      <>
+        <View style={s.ttdSpace} />
+        <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>{namaCadangan}</Text>
+        <Text style={s.belumTtd}>Belum ditandatangani secara elektronik</Text>
+      </>
+    );
+  }
+  return (
+    <>
+      <View style={s.stempel}>
+        <Text style={s.stempelJudul}>DITANDATANGANI SECARA ELEKTRONIK</Text>
+        <Text style={s.stempelBaris}>{ttd.jabatan}</Text>
+        <Text style={s.stempelBaris}>{waktuTtd(ttd.waktu)}</Text>
+        <Text style={s.stempelKode}>{ttd.kode}</Text>
+      </View>
+      <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>{ttd.nama}</Text>
+    </>
+  );
 }
 
 export function LaporanPdf({ data }: { data: PdfLaporanData }) {
@@ -263,16 +330,15 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
           <View style={s.ttdBlock}>
             <Text>Batam, {data.tanggal}</Text>
             <Text style={{ marginTop: 2 }}>Dosen Pembimbing Akademik,</Text>
-            <View style={s.ttdSpace} />
-            <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>{data.dosenNama}</Text>
+            <BlokTtd ttd={data.ttdDosen} namaCadangan={data.dosenNama} />
           </View>
           <View style={s.ttdBlock}>
             <Text> </Text>
             <Text style={{ marginTop: 2 }}>Mengesahkan, Wakil Dekan I</Text>
-            <View style={s.ttdSpace} />
-            <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>
-              {data.wadekNama || '(  .....................................  )'}
-            </Text>
+            <BlokTtd
+              ttd={data.ttdWadek}
+              namaCadangan={data.wadekNama || '(  .....................................  )'}
+            />
           </View>
         </View>
 
