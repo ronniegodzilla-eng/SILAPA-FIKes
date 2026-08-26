@@ -59,6 +59,37 @@ sudah ada — setelah edit `Code.gs` di editor, harus **Deploy → Manage
 deployments → (deployment aktif) → Edit (ikon pensil) → Version: New version
 → Deploy** supaya perubahan benar-benar aktif di URL yang sama.
 
+## PENTING — perbarui script untuk unggah langsung (hemat kuota Vercel)
+
+Sejak versi ini, browser mengunggah berkas **langsung ke Apps Script**, tidak
+lagi menumpang lewat server Vercel. Sebelumnya tiap berkas melintasi Serverless
+Function dua kali (masuk dari browser, keluar lagi ke Apps Script) — dari 3.853
+bukti yang sudah terunggah, itu saja ±6,4GB Fast Origin Transfer.
+
+**Yang harus dilakukan sekali:** salin ulang seluruh isi `upload-bukti.gs` ke
+editor Apps Script, lalu **Deploy → Manage deployments → Edit → Version: New
+version → Deploy** (lihat bagian di atas).
+
+Tidak ada tenggat dan tidak ada risiko downtime: script versi lama tetap
+melayani jalur lama, dan aplikasi otomatis mundur ke jalur lama bila unggah
+langsung gagal. Selama belum diperbarui, unggahan tetap berhasil — hanya saja
+masih memakai kuota Vercel seperti sebelumnya.
+
+**Cara memastikan sudah aktif:** unggah satu bukti dari HP, lalu buka Vercel →
+Observability. Kalau `/api/upload-bukti` tidak lagi terpanggil (yang muncul
+hanya `/api/upload-tiket`), berarti jalur langsung sudah bekerja.
+
+### Bagaimana keamanannya dijaga
+
+`UPLOAD_SECRET` **tidak pernah** dikirim ke browser. Server hanya menerbitkan
+"tiket": tanda tangan HMAC-SHA256 atas `npm|label|kedaluwarsa`. Apps Script
+menghitung ulang tanda tangan itu dengan secret miliknya sendiri, dan menolak
+bila tidak cocok atau sudah lewat waktu (umur tiket 5 menit). Wewenang
+sesungguhnya — token isi-data mahasiswa, atau login dosen PA plus kepemilikan
+bimbingan — tetap diperiksa di server saat tiket diterbitkan, persis seperti
+sebelumnya. `npm` dan `label` yang dipakai menyimpan berkas diambil dari
+**tiket**, bukan dari body permintaan, sehingga tidak bisa diganti pengirim.
+
 ## Struktur penyimpanan
 
 File tersimpan di Drive akun yang deploy, di folder

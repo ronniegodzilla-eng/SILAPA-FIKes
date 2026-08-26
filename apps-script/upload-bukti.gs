@@ -5,10 +5,24 @@
  * (script.google.com) lalu deploy sebagai Web App. Lihat README di folder
  * ini untuk langkah deploy lengkap.
  *
- * Kontrak (dipanggil server-side dari /api/upload-bukti, BUKAN langsung dari
- * browser — jadi secret ini tidak pernah terkirim ke client):
- *   POST body (JSON): { secret, npm, label, filename, mimeType, data (base64) }
- *   Response (JSON):  { ok: true, url, fileId } atau { ok: false, error }
+ * DUA cara pemanggilan didukung sekaligus, supaya urutan deploy tidak pernah
+ * memutus unggahan (Vercel dan Apps Script di-deploy terpisah):
+ *
+ * 1. TIKET (cara baru, dipakai langsung dari browser). Berkas TIDAK melewati
+ *    Vercel sama sekali — itu yang dulu membuat Fast Origin Transfer melonjak,
+ *    karena tiap berkas melintasi Serverless Function dua kali. Server hanya
+ *    menerbitkan izin berbatas waktu:
+ *      POST body (JSON): { tiket: { npm, label, exp, sig }, filename, mimeType, data }
+ *    `sig` = HMAC-SHA256 atas "npm|label|exp" memakai UPLOAD_SECRET, dalam
+ *    base64 web-safe tanpa '='. Secret-nya sendiri tidak pernah sampai ke
+ *    browser; yang beredar cuma tanda tangan untuk satu mahasiswa, satu jenis
+ *    bukti, dan berumur beberapa menit.
+ *
+ * 2. SECRET (cara lama, dari server /api/upload-bukti sebagai cadangan bila
+ *    unggah langsung gagal):
+ *      POST body (JSON): { secret, npm, label, filename, mimeType, data }
+ *
+ *   Response (JSON): { ok: true, url, fileId } atau { ok: false, error }
  */
 
 var ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -20,9 +34,17 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
 
     var expectedSecret = PropertiesService.getScriptProperties().getProperty('UPLOAD_SECRET');
-    if (!expectedSecret || body.secret !== expectedSecret) {
-      return jsonResponse({ ok: false, error: 'Secret tidak valid.' });
+    if (!expectedSecret) {
+      return jsonResponse({ ok: false, error: 'UPLOAD_SECRET belum diset di Script Properties.' });
     }
+
+    var izin = periksaIzin(body, expectedSecret);
+    if (!izin.ok) return jsonResponse({ ok: false, error: izin.error });
+    // npm/label diambil dari TIKET bila memakai jalur tiket — bukan dari
+    // field bebas di body, yang bisa dikarang pengirim. Tanda tangan hanya
+    // sah untuk pasangan npm+label yang memang diizinkan server.
+    body.npm = izin.npm;
+    body.label = izin.label;
 
     if (ALLOWED_MIME_TYPES.indexOf(body.mimeType) === -1) {
       return jsonResponse({ ok: false, error: 'Format file harus JPG, PNG, WEBP, atau PDF.' });
@@ -48,6 +70,35 @@ function doPost(e) {
   } catch (err) {
     return jsonResponse({ ok: false, error: 'Gagal memproses upload: ' + err.message });
   }
+}
+
+/**
+ * Menentukan boleh-tidaknya sebuah permintaan, dan mengembalikan npm+label
+ * yang SAH untuk dipakai. Menerima jalur tiket maupun jalur secret lama.
+ */
+function periksaIzin(body, expectedSecret) {
+  // Jalur lama: server kita sendiri yang memanggil, membawa secret.
+  if (body.secret) {
+    if (body.secret !== expectedSecret) return { ok: false, error: 'Secret tidak valid.' };
+    return { ok: true, npm: body.npm, label: body.label };
+  }
+
+  var t = body.tiket;
+  if (!t || !t.npm || !t.label || !t.exp || !t.sig) {
+    return { ok: false, error: 'Tiket unggah tidak ada atau tidak lengkap.' };
+  }
+  if (Number(t.exp) < Date.now()) {
+    return { ok: false, error: 'Tiket unggah sudah kedaluwarsa. Muat ulang halaman lalu coba lagi.' };
+  }
+  var muatan = t.npm + '|' + t.label + '|' + t.exp;
+  var bytes = Utilities.computeHmacSha256Signature(muatan, expectedSecret);
+  // base64EncodeWebSafe menghasilkan '-' dan '_' plus padding '='; sisi Node
+  // memakai base64url yang TANPA padding, jadi '=' dibuang agar sebanding.
+  var harusnya = Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '');
+  if (String(t.sig).replace(/=+$/, '') !== harusnya) {
+    return { ok: false, error: 'Tiket unggah tidak sah.' };
+  }
+  return { ok: true, npm: t.npm, label: t.label };
 }
 
 /** SILAPA-FIKes Bukti/{npm}/ — satu subfolder per mahasiswa agar rapi. */

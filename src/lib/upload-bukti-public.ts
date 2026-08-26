@@ -1,6 +1,7 @@
 'use client';
 
 import { kecilkanGambarBilaPerlu } from './kecilkan-gambar';
+import { unggahLangsung, type Tiket } from './unggah-langsung';
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -32,15 +33,29 @@ export async function uploadBuktiFilePublic(token: string, npm: string, label: s
     );
   }
   const data = await fileToBase64(file);
-  const res = await fetch('/api/public/upload-bukti', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, npm, label, filename: file.name, mimeType: file.type, data }),
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => '');
-    throw new Error(msg || `Gagal mengunggah (HTTP ${res.status}).`);
+
+  // Sama seperti jalur dosen: unggah langsung ke Apps Script lewat tiket, dan
+  // hanya mundur ke proksi lama bila jalur itu gagal.
+  try {
+    const rt = await fetch('/api/public/upload-tiket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, npm, label }),
+    });
+    if (!rt.ok) throw new Error(await rt.text().catch(() => ''));
+    const t = (await rt.json()) as { uploadUrl: string; tiket: Tiket };
+    return await unggahLangsung(t.uploadUrl, t.tiket, file, data);
+  } catch {
+    const res = await fetch('/api/public/upload-bukti', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, npm, label, filename: file.name, mimeType: file.type, data }),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => '');
+      throw new Error(msg || `Gagal mengunggah (HTTP ${res.status}).`);
+    }
+    const json = await res.json();
+    return json.url as string;
   }
-  const json = await res.json();
-  return json.url as string;
 }

@@ -2,6 +2,7 @@
 
 import { apiFetch } from './download';
 import { kecilkanGambarBilaPerlu } from './kecilkan-gambar';
+import { unggahLangsung, type Tiket } from './unggah-langsung';
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -34,9 +35,22 @@ export async function uploadBuktiFile(npm: string, label: string, asli: File): P
     );
   }
   const data = await fileToBase64(file);
-  const res = await apiFetch<{ ok: true; url: string }>('/api/upload-bukti', {
-    method: 'POST',
-    body: { npm, label, filename: file.name, mimeType: file.type, data },
-  });
-  return res.url;
+
+  // Jalur utama: minta tiket (beberapa ratus byte lewat Vercel), lalu kirim
+  // berkasnya LANGSUNG ke Apps Script. Bila gagal — Apps Script versi lama
+  // yang belum mengenal tiket, atau CORS diblokir peramban tertentu — mundur
+  // ke proksi lama supaya pengguna tidak pernah kehilangan kemampuan unggah.
+  try {
+    const t = await apiFetch<{ uploadUrl: string; tiket: Tiket }>('/api/upload-tiket', {
+      method: 'POST',
+      body: { npm, label },
+    });
+    return await unggahLangsung(t.uploadUrl, t.tiket, file, data);
+  } catch {
+    const res = await apiFetch<{ ok: true; url: string }>('/api/upload-bukti', {
+      method: 'POST',
+      body: { npm, label, filename: file.name, mimeType: file.type, data },
+    });
+    return res.url;
+  }
 }
