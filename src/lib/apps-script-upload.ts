@@ -20,8 +20,14 @@ import 'server-only';
  * kalau tetap gagal barulah dibalas dengan kalimat yang bisa dikerjakan.
  */
 
-const PERCOBAAN_MAKS = 3;
-const JEDA_MS = [600, 1800];
+/**
+ * Dua percobaan, bukan tiga. Tiap percobaan mengirim ULANG seluruh berkas ke
+ * Apps Script, jadi tiap tambahan percobaan melipatgandakan lalu lintas keluar
+ * Serverless Function. Dua sudah menangkap hampir semua gangguan sesaat Google
+ * tanpa membuat satu kegagalan berbiaya tiga kali lipat.
+ */
+const PERCOBAAN_MAKS = 2;
+const JEDA_MS = [1200];
 
 export type HasilUpload =
   | { ok: true; url: string; fileId?: string }
@@ -71,7 +77,7 @@ export async function unggahLewatAppsScript(payload: {
         // log Vercel, TAPI tidak pernah ditampilkan ke pengguna.
         terakhir = `HTTP ${res.status}, bukan JSON: ${teks.slice(0, 200).replace(/\s+/g, ' ')}`;
         console.error(
-          `[upload-bukti] Apps Script membalas non-JSON (percobaan ${percobaan}/${PERCOBAAN_MAKS}, npm ${payload.npm}, label ${payload.label}): ${terakhir}`
+          `[upload-bukti] Apps Script membalas non-JSON (percobaan ${percobaan}/${PERCOBAAN_MAKS}, npm ${payload.npm}, label ${payload.label}, ${Math.round(payload.data.length / 1024)}KB): ${terakhir}`
         );
         if (percobaan < PERCOBAAN_MAKS) {
           await jeda(JEDA_MS[percobaan - 1]);

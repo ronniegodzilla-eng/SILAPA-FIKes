@@ -14,11 +14,20 @@
  * perilakunya tidak pernah lebih buruk daripada sebelum ada fungsi ini.
  */
 
-/** Di bawah ini tidak perlu diapa-apakan. */
-const AMAN_BYTES = 1024 * 1024;
-/** Sisi terpanjang setelah diperkecil — cukup untuk membaca teks KHS/KRS. */
-const SISI_MAKS = 2000;
-const MUTU = 0.82;
+/**
+ * Ambang ini sengaja RENDAH. Sebelumnya 1MB, padahal ukuran median bukti yang
+ * sudah terunggah cuma 0,37MB — artinya sebagian besar berkas lolos tanpa
+ * diperkecil sama sekali, dan tiap byte-nya melintasi Serverless Function dua
+ * kali (masuk dari browser, lalu keluar lagi ke Apps Script). Itulah sumber
+ * utama lonjakan Fast Origin Transfer.
+ */
+const AMAN_BYTES = 200 * 1024;
+/**
+ * Sisi terpanjang setelah diperkecil. 1600px pada selembar A4 setara ~135 DPI
+ * — teks KRS/KHS tetap terbaca jelas, sementara berkasnya jauh lebih ringan.
+ */
+const SISI_MAKS = 1600;
+const MUTU = 0.75;
 
 export async function kecilkanGambarBilaPerlu(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
