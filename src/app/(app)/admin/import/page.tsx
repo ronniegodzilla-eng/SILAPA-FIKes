@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useData } from '@/lib/data-context';
 import { upsertSubmissionJumlah, type DosenPaOption } from '@/lib/firestore/data';
+import { computeSemesterKe } from '@/lib/compute';
 import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateMahasiswa, downloadTemplateNilai } from '@/lib/xlsx-template';
 import { colors } from '@/lib/theme';
@@ -106,7 +107,7 @@ export default function ImportPage() {
       setRows(
         mode === 'nilai'
           ? validateNilai(mapped, records)
-          : validateMahasiswa(mapped, records, dosenPaOptions)
+          : validateMahasiswa(mapped, records, dosenPaOptions, periode)
       );
       setFileName(file.name);
       setStage('preview');
@@ -325,7 +326,8 @@ function validateNilai(
 function validateMahasiswa(
   raw: Record<string, string>[],
   records: Record<string, MahasiswaRecord>,
-  dosenList: DosenPaOption[]
+  dosenList: DosenPaOption[],
+  periode: { tahunAkademik: string; semester: 'ganjil' | 'genap' } | null
 ): PreviewRow[] {
   // dosen_pa dicocokkan ke daftar dosen berdasarkan nama, case-insensitive;
   // gelar boleh dihilangkan asal awalan nama cocok unik.
@@ -364,7 +366,13 @@ function validateMahasiswa(
 
     const payload: MahasiswaRecord | undefined = msg ? undefined : {
       npm, nama, prodi: prodi as MahasiswaRecord['prodi'], angkatan,
-      kelas: kelas as MahasiswaRecord['kelas'], semesterKe: 2, status: 'aktif',
+      kelas: kelas as MahasiswaRecord['kelas'],
+      // Semester dihitung dari angkatan + periode, tidak lagi dipatok 2.
+      // Patokan lama itulah yang membuat mahasiswa baru tertulis semester 2.
+      semesterKe: periode
+        ? computeSemesterKe(angkatan, Number(periode.tahunAkademik.split('/')[0]), periode.semester)
+        : 1,
+      status: 'aktif',
       dosenPaUid: dosen ? dosen.dosenUid : undefined,
       pkkmb: false, toefl: false, esq: false, semkes: [],
       akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },

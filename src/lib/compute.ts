@@ -153,15 +153,27 @@ export function computeDosenRekap(list: MahasiswaRecord[]): DosenRekap {
 }
 
 /**
- * semesterKe formula (PRD §4.6):
- * (tahunPeriode − angkatan) × 2 + (semester == "genap" ? 2 : 1)
+ * Nomor semester yang DITULIS pada laporan periode.
+ *
+ *   (tahunPeriodeAwal − angkatan) × 2 + (genap ? 3 : 2)
+ *
+ * Satu lebih tinggi daripada semester yang sedang berjalan, dan itu memang
+ * disengaja: laporan disusun dosen PA pada AWAL semester berikutnya, dan isinya
+ * mencakup KRS semester yang akan dijalani beserta KHS semester yang baru saja
+ * selesai. Jadi pada pelaporan genap 2025/2026, mahasiswa yang sedang di
+ * semester 8 ditulis semester 9, dan mahasiswa baru angkatan 2026 — yang baru
+ * akan memulai kuliah — ditulis semester 1.
+ *
+ * Berlaku untuk kedua jenis periode, sehingga penomorannya naik satu tiap
+ * periode tanpa putus: 1, 2, 3, … Rumus lama (+2/+1) menulis semester yang
+ * sedang berjalan, sehingga mahasiswa baru tidak punya nomor sama sekali (0).
  */
 export function computeSemesterKe(
   angkatan: number,
   tahunPeriodeAwal: number,
   semester: 'ganjil' | 'genap'
 ): number {
-  return (tahunPeriodeAwal - angkatan) * 2 + (semester === 'genap' ? 2 : 1);
+  return (tahunPeriodeAwal - angkatan) * 2 + (semester === 'genap' ? 3 : 2);
 }
 
 // ─── W1: Faculty-wide aggregates (PRD §6) ────────────────────────────────

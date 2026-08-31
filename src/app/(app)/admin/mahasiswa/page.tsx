@@ -6,6 +6,7 @@ import { colors, statusPill, STATUS_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
 import { PengunduranModal } from '@/components/PengunduranModal';
+import { computeSemesterKe } from '@/lib/compute';
 import { KELAS_PILIHAN, type MahasiswaRecord } from '@/lib/types';
 
 /** Kolom yang bisa diurutkan pada tabel master mahasiswa. */
@@ -25,7 +26,7 @@ interface Draft {
 }
 
 export default function MasterMahasiswaPage() {
-  const { recordList, records, dosenPaOptions, addMahasiswa, editMahasiswaMaster, toggleNonaktif, ajukanPengunduran } = useData();
+  const { recordList, records, dosenPaOptions, periode, addMahasiswa, editMahasiswaMaster, toggleNonaktif, ajukanPengunduran } = useData();
   const [undurNpm, setUndurNpm] = useState<string | null>(null);
   // dosenPaOptions, bukan dosenRoster: mahasiswa yang diplot ke dosen yang
   // baru didaftarkan akan tampil "belum diplot" bila hanya roster yang dipakai.
@@ -79,7 +80,13 @@ export default function MasterMahasiswaPage() {
     } else if (mode === 'add') {
       const rec: MahasiswaRecord = {
         npm: draft.npm, nama: draft.nama || 'Mahasiswa Baru', prodi: draft.prodi as MahasiswaRecord['prodi'],
-        angkatan: draft.angkatan, kelas: draft.kelas as MahasiswaRecord['kelas'], semesterKe: 2, status: 'aktif',
+        angkatan: draft.angkatan, kelas: draft.kelas as MahasiswaRecord['kelas'],
+        // Semester dihitung dari angkatan + periode, tidak lagi dipatok 2.
+        // Patokan lama itulah yang membuat mahasiswa baru tertulis semester 2.
+        semesterKe: periode
+          ? computeSemesterKe(draft.angkatan, Number(periode.tahunAkademik.split('/')[0]), periode.semester)
+          : 1,
+        status: 'aktif',
         pkkmb: false, toefl: false, esq: false, semkes: [],
         akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
         nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },

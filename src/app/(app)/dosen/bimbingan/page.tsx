@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useData } from '@/lib/data-context';
-import { computeDosenStats } from '@/lib/compute';
+import { computeDosenStats, computeSemesterKe } from '@/lib/compute';
 import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
@@ -199,7 +199,13 @@ export default function DaftarBimbinganPage() {
       const rec: MahasiswaRecord = {
         npm, nama, prodi: tambahDraft.prodi as MahasiswaRecord['prodi'],
         angkatan: tambahDraft.angkatan, kelas: tambahDraft.kelas as MahasiswaRecord['kelas'],
-        dosenPaUid: appUser.uid, semesterKe: 2, status: 'aktif',
+        dosenPaUid: appUser.uid,
+        // Semester dihitung dari angkatan + periode, tidak lagi dipatok 2.
+        // Patokan lama itulah yang membuat mahasiswa baru tertulis semester 2.
+        semesterKe: periode
+          ? computeSemesterKe(tambahDraft.angkatan, Number(periode.tahunAkademik.split('/')[0]), periode.semester)
+          : 1,
+        status: 'aktif',
         pkkmb: false, toefl: false, esq: false, semkes: [],
         akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
         nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
