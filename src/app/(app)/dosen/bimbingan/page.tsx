@@ -40,7 +40,7 @@ interface ImportRow {
 }
 
 /** Kolom yang bisa diurutkan pada tabel daftar bimbingan. */
-type SortKey = 'npm' | 'nama' | 'prodi' | 'semesterKe' | 'kelas' | 'sks' | 'ip' | 'konsul' | 'status' | 'statusPengisian';
+type SortKey = 'npm' | 'nama' | 'prodi' | 'semesterKe' | 'kelas' | 'sks' | 'ip' | 'ipk' | 'konsul' | 'status' | 'statusPengisian';
 
 interface TambahDraft {
   npm: string;
@@ -126,6 +126,7 @@ export default function DaftarBimbinganPage() {
     switch (key) {
       case 'sks': return m.akademik.sksKrs;
       case 'ip': return m.akademik.ipKhs;
+      case 'ipk': return m.akademik.ipk ?? null;
       case 'konsul': return m.akademik.konsultasi.length;
       default: return m[key as keyof typeof m] as never;
     }
@@ -488,7 +489,7 @@ export default function DaftarBimbinganPage() {
             <tr style={{ background: colors.subtle }}>
               {([
                 ['NPM', 'npm'], ['Nama', 'nama'], ['Prodi', 'prodi'], ['Smt', 'semesterKe'], ['Kelas', 'kelas'],
-                ['SKS', 'sks'], ['IP', 'ip'], ['Konsul', 'konsul'], ['Status', 'status'], ['Kelengkapan', 'statusPengisian'],
+                ['SKS', 'sks'], ['IP', 'ip'], ['IPK', 'ipk'], ['Konsul', 'konsul'], ['Status', 'status'], ['Kelengkapan', 'statusPengisian'],
               ] as [string, SortKey][]).map(([label, key]) => (
                 <SortableTh key={key} label={label} sortKey={key} sort={sort} style={TH} />
               ))}
@@ -518,8 +519,41 @@ export default function DaftarBimbinganPage() {
                     <span className="silapa-name-link">{m.nama}</span>
                   </td>
                   <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{m.prodi}</td>
-                  <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{m.semesterKe}</td>
-                  <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{m.kelas}</td>
+                  <td style={{ padding: '8px 16px' }}>
+                    {quickEdit ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={m.semesterKe}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (!Number.isFinite(v)) return;
+                          updateField(m.npm, 'semesterKe', v);
+                          // Ditandai manual, sama seperti di form lengkap, supaya
+                          // koreksi ini tidak tertimpa hitungan otomatis.
+                          updateField(m.npm, 'semesterKeManual', true);
+                        }}
+                        style={{ ...numInput, width: 52 }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 13, color: colors.ink }}>{m.semesterKe}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 16px' }}>
+                    {quickEdit ? (
+                      <select
+                        value={m.kelas}
+                        onChange={(e) => updateField(m.npm, 'kelas', e.target.value)}
+                        style={{ ...numInput, width: 88 }}
+                      >
+                        <option value="-">—</option>
+                        {KELAS_PILIHAN.map((k) => <option key={k} value={k}>{k}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 13, color: colors.ink }}>{m.kelas}</span>
+                    )}
+                  </td>
                   <td style={{ padding: '8px 16px' }}>
                     {quickEdit ? (
                       <input
@@ -543,6 +577,21 @@ export default function DaftarBimbinganPage() {
                       />
                     ) : (
                       <span style={{ fontSize: 13, color: colors.ink }}>{m.akademik.ipKhs != null ? m.akademik.ipKhs.toFixed(2) : '—'}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 16px' }}>
+                    {quickEdit ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={4}
+                        value={m.akademik.ipk ?? ''}
+                        onChange={(e) => updateField(m.npm, 'akademik.ipk', e.target.value === '' ? null : Number(e.target.value))}
+                        style={{ ...numInput, width: 56 }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 13, color: colors.ink }}>{m.akademik.ipk != null ? m.akademik.ipk.toFixed(2) : '—'}</span>
                     )}
                   </td>
                   <td style={{ padding: '8px 16px' }}>
