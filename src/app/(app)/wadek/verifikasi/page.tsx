@@ -56,8 +56,14 @@ export default function VerifikasiPage() {
     setDetailLoading(true);
     fetchMahasiswaRecords(periode.id, { dosenPaUid: detail.dosenUid })
       .then((records) => {
-        setDetailStats(computeDosenStats(records));
-        setDetailIpk(computeIpkPerProdi(records));
+        // Sama seperti Dashboard & Daftar Bimbingan dosen: mahasiswa yang
+        // pengunduran dirinya sudah disahkan bukan bimbingan aktif lagi.
+        // Tanpa saringan ini Wakil Dekan I melihat laporan dosen sebagai
+        // "belum lengkap" karena record yang dosennya sendiri tidak bisa
+        // lengkapi — dan bisa mengembalikan laporan yang sebenarnya beres.
+        const aktif = records.filter((m) => !m.mengundurkanDiri);
+        setDetailStats(computeDosenStats(aktif));
+        setDetailIpk(computeIpkPerProdi(aktif));
       })
       .catch(() => { setDetailStats(null); setDetailIpk([]); })
       .finally(() => setDetailLoading(false));

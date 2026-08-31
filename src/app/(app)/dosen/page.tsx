@@ -49,8 +49,15 @@ export default function DosenDashboardPage() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState('');
 
-  const stats = computeDosenStats(recordList);
-  const rekap = computeDosenRekap(recordList);
+  // Pengunduran diri yang sudah disahkan Wakil Dekan I mengeluarkan mahasiswa
+  // dari bimbingan aktif — sama seperti di Daftar Bimbingan dan di hitungan
+  // per-dosen pada data layer. Tanpa saringan ini dashboard menghitung
+  // mahasiswa yang sudah bukan bimbingan lagi: satu record "kosong" yang tak
+  // bisa dilengkapi karena orangnya tak muncul di daftar, dan tombol Kirim
+  // Laporan ikut terkunci karenanya.
+  const bimbinganAktif = recordList.filter((m) => !m.mengundurkanDiri);
+  const stats = computeDosenStats(bimbinganAktif);
+  const rekap = computeDosenRekap(bimbinganAktif);
   const canSubmit = stats.allLengkap || confirmEmpty;
   const { periode } = useData();
 
