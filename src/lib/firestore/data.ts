@@ -248,6 +248,43 @@ function pluckPath(rec: MahasiswaRecord, path: string): Record<string, unknown> 
  * (merge) so concurrent edits/imports are never clobbered, plus the
  * recomputed statusPengisian for laporan-side changes.
  */
+/**
+ * Menyalakan/mematikan tanda lulus di dokumen induk mengikuti status periode.
+ *
+ * Hanya tanda lulus yang disentuh. Status lain — 'cuti'/'non_aktif' yang
+ * disetel admin lewat toggle non-aktif — sengaja dibiarkan apa adanya, supaya
+ * perubahan status oleh dosen PA tidak diam-diam menimpa setelan tersebut.
+ *
+ * Catatan batas wewenang: ini hanya dilewati jalur dosen PA. Mahasiswa yang
+ * mengisi lewat link mandiri juga bisa memilih "Lulus", tapi patch-nya
+ * ditangani /api/public/isi-data yang tidak memuat `status` dalam field induk
+ * yang boleh ditulis — laporan periodenya saja yang berubah. Kelulusan baru
+ * berlaku seterusnya setelah dosen PA-nya sendiri yang menyetel.
+ */
+async function cerminkanKelulusan(
+  db: ReturnType<typeof getDbOrThrow>,
+  npm: string,
+  status: MahasiswaRecord['status']
+) {
+  const ref = doc(db, 'mahasiswa', npm);
+  if (status === 'lulus') {
+    await setDoc(ref, { statusGlobal: 'lulus', updatedAt: serverTimestamp() }, { merge: true });
+    return;
+  }
+  const snap = await getDoc(ref);
+  if (!snap.exists() || (snap.data() as { statusGlobal?: string }).statusGlobal !== 'lulus') return;
+  // Dosen mencabut status lulus (mis. salah pilih) — kembalikan supaya
+  // mahasiswanya ikut lagi saat periode berikutnya dibuka.
+  await setDoc(
+    ref,
+    {
+      statusGlobal: status === 'cuti' || status === 'non_aktif' ? status : 'aktif',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
 export async function persistMahasiswaField(
   periodeId: string,
   nextRecord: MahasiswaRecord,
@@ -273,6 +310,22 @@ export async function persistMahasiswaField(
       { merge: true }
     );
   }
+  // SESUDAH tulisan utama, bukan sebelum: status periode adalah yang pokok,
+  // penandaan di dokumen induk adalah akibatnya. Kalau urutannya dibalik dan
+  // penandaan gagal, status yang baru dipilih dosen ikut batal tersimpan.
+  //
+  // `status` berlaku per periode — kecuali 'lulus'. Mahasiswa yang sudah
+  // diwisuda tidak boleh muncul lagi saat periode berikutnya dibuka, dan
+  // penyaring di bukaPeriodeGenerate membaca `statusGlobal` di dokumen induk,
+  // bukan status laporan. Tanpa cerminan ini "lulus" hanya tersimpan di
+  // laporan periode berjalan, lalu orangnya kembali pada periode berikutnya
+  // sebagai mahasiswa AKTIF berstatus kosong — lengkap dengan nomor semester
+  // yang terus naik seolah masih kuliah.
+  //
+  // Kegagalannya sengaja dibiarkan menggelembung, tidak ditelan diam-diam:
+  // tanda yang gagal tertulis berarti kelulusannya tidak berlaku seterusnya,
+  // dan itu persis bug yang sedang diperbaiki — dosen perlu tahu.
+  if (path === 'status') await cerminkanKelulusan(db, nextRecord.npm, nextRecord.status);
 }
 
 export async function createMahasiswaMaster(rec: MahasiswaRecord, periodeId: string) {
@@ -797,6 +850,14 @@ export async function commitImportLengkap(
     });
     patch['statusPengisian'] = computeStatusPengisian(next);
     await updateDoc(ref, patch);
+
+    // Import lengkap menulis langsung ke dokumen laporan, jadi ia tidak lewat
+    // persistMahasiswaField. Cerminan kelulusan harus dipanggil sendiri di
+    // sini — tanpa itu "lulus" yang masuk lewat Excel tetap hanya berlaku satu
+    // periode, persis bug yang diperbaiki untuk penyetelan lewat form.
+    if (row.status !== undefined) {
+      await cerminkanKelulusan(db, row.npm, row.status as MahasiswaRecord['status']);
+    }
 
     // Master fields (rules allow dosen: pkkmb/toefl/esq/semkes).
     const masterPatch: Record<string, unknown> = {};

@@ -150,6 +150,26 @@ async function main() {
     assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { kelas: 'RPL' })));
   await check('dosen ubah kelas SEKALIGUS prodi → deny', () =>
     assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { kelas: 'REG A', prodi: 'S2KM' })));
+
+  // statusGlobal: penanda yang membuat kelulusan berlaku LINTAS periode
+  // (penyaring pembukaan periode membacanya). Dosen PA boleh menyetelnya untuk
+  // bimbingannya sendiri, tapi hanya ke status yang memang ada di formnya —
+  // 'keluar' tetap wewenang admin, karena itu mengeluarkan mahasiswa dari
+  // sistem, bukan sekadar menandai dia sudah lulus.
+  await check('dosen pemilik tandai lulus (statusGlobal) → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { statusGlobal: 'lulus' })));
+  await check('dosen pemilik cabut tanda lulus (statusGlobal aktif) → allow', () =>
+    assertSucceeds(updateDoc(doc(dosenA, 'mahasiswa/1001'), { statusGlobal: 'aktif' })));
+  await check('dosen BUKAN pemilik tandai lulus → deny', () =>
+    assertFails(updateDoc(doc(dosenB, 'mahasiswa/1001'), { statusGlobal: 'lulus' })));
+  await check("dosen setel statusGlobal 'keluar' → deny", () =>
+    assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { statusGlobal: 'keluar' })));
+  await check('dosen setel statusGlobal nilai ngawur → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { statusGlobal: 'dihapus_saja' })));
+  await check('dosen selundupkan nama lewat statusGlobal → deny', () =>
+    assertFails(updateDoc(doc(dosenA, 'mahasiswa/1001'), { statusGlobal: 'lulus', nama: 'Diubah Paksa' })));
+  await check("admin setel statusGlobal 'keluar' → allow", () =>
+    assertSucceeds(updateDoc(doc(admin, 'mahasiswa/1001'), { statusGlobal: 'keluar' })));
   await check('admin ubah field apa pun di mahasiswa → allow', () =>
     assertSucceeds(updateDoc(doc(admin, 'mahasiswa/1001'), { nama: 'Diubah Admin' })));
 

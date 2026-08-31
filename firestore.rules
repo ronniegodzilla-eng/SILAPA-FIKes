@@ -91,12 +91,20 @@ service cloud.firestore {
       // semua record masih '-', dan hanya dosen PA/mahasiswanya yang tahu
       // kelas sebenarnya. Identitas lain (npm/nama/prodi/angkatan/dosenPaUid)
       // tetap tertutup.
+      // `statusGlobal` ikut boleh, TAPI hanya bernilai salah satu status yang
+      // memang bisa dipilih dosen di form. Ini yang membuat "lulus" berlaku
+      // seterusnya: penyaring pembukaan periode membaca field ini, sehingga
+      // mahasiswa yang sudah diwisuda tidak muncul lagi periode berikutnya.
+      // 'keluar' sengaja TIDAK diizinkan — mengeluarkan mahasiswa dari sistem
+      // tetap wewenang admin, bukan efek samping penyetelan status oleh dosen.
       allow update: if isAdmin()
         || (isDosen()
             && resource.data.dosenPaUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['pkkmb', 'toefl', 'esq', 'semkes', 'ipHistory', 'updatedAt',
-                           'kelas', 'pkkmbBukti', 'toeflBukti', 'esqBukti']));
+                           'kelas', 'pkkmbBukti', 'toeflBukti', 'esqBukti', 'statusGlobal'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['statusGlobal'])
+                || request.resource.data.statusGlobal in ['aktif', 'cuti', 'non_aktif', 'lulus']));
     }
 
     // ── laporan (one per mahasiswa per periode) ──

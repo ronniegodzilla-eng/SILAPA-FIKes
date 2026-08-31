@@ -14,6 +14,7 @@
     "update:email": "tsx scripts/update-user-email.ts",
     "deploy:rules": "tsx scripts/deploy-rules.ts",
     "migrate:semester": "node scripts/migrate-semester.mjs",
+    "migrate:lulus": "node scripts/migrate-lulus.mjs",
     "test:rules": "JAVA_HOME=\"$PWD/.jdk21/Contents/Home\" firebase emulators:exec --only firestore --project demo-silapa-fikes \"tsx tests/firestore-rules.test.ts\""
   },
   "dependencies": {
