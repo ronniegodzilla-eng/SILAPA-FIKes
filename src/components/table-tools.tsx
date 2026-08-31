@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { colors } from '@/lib/theme';
 import { Icon } from './ui';
 
@@ -13,6 +13,55 @@ import { Icon } from './ui';
  * Firestore tanpa manfaat. Konsekuensinya: urut & cari berlaku pada SELURUH
  * data, bukan cuma baris yang sedang tampil di halaman aktif.
  */
+
+/**
+ * Tampilan tabel yang diingat saat pengguna berpindah halaman.
+ *
+ * Dosen PA mengurutkan daftar, melebarkannya jadi 100 baris, membuka form
+ * seorang mahasiswa, lalu kembali — tanpa ini seluruh tampilan kembali ke
+ * setelan awal dan harus disusun ulang setiap kali masuk-keluar form.
+ *
+ * Disimpan di sessionStorage, bukan localStorage: bertahan selama tab masih
+ * terbuka (termasuk bila halaman dimuat ulang) lalu hilang sendiri saat tab
+ * ditutup, sehingga sesi kerja berikutnya mulai dari tampilan bersih alih-alih
+ * mewarisi filter berminggu-minggu lalu yang sudah dilupakan pemakainya.
+ *
+ * Aman dibaca di initializer useState: halaman aplikasi baru dirender setelah
+ * autentikasi rampung di sisi klien (lihat (app)/layout.tsx), jadi tidak ada
+ * render server yang bisa berbeda dari hasil pembacaan ini.
+ */
+const RUANG = 'silapa.tabel.';
+
+function bacaSimpanan<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(RUANG + key);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    return fallback; // sessionStorage diblokir / isinya rusak — pakai setelan awal.
+  }
+}
+
+function tulisSimpanan(key: string, value: unknown) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(RUANG + key, JSON.stringify(value));
+  } catch {
+    // Kuota penuh atau mode privat. Ini cuma kenyamanan tampilan — biarkan.
+  }
+}
+
+/**
+ * useState yang mengingat nilainya. `persistKey` kosong = perilaku useState
+ * biasa, supaya tabel yang tidak perlu diingat tidak berubah sama sekali.
+ */
+export function usePersistedState<T>(persistKey: string | undefined, initial: T) {
+  const [value, setValue] = useState<T>(() => (persistKey ? bacaSimpanan(persistKey, initial) : initial));
+  useEffect(() => {
+    if (persistKey) tulisSimpanan(persistKey, value);
+  }, [persistKey, value]);
+  return [value, setValue] as const;
+}
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 export const DEFAULT_PAGE_SIZE = 25;
@@ -48,23 +97,31 @@ export interface TableSort<K extends string> {
 /**
  * State urut per kolom. Klik pertama = menaik, klik lagi = menurun, klik
  * ketiga = kembali ke urutan asli (mis. urutan NPM dari data layer).
+ *
+ * Isi `persistKey` agar urutan pilihan pengguna diingat saat ia meninggalkan
+ * halaman dan kembali lagi (lihat usePersistedState).
  */
-export function useTableSort<K extends string>(initialKey: K | null = null): TableSort<K> {
-  const [sortKey, setSortKey] = useState<K | null>(initialKey);
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+export function useTableSort<K extends string>(
+  initialKey: K | null = null,
+  persistKey?: string
+): TableSort<K> {
+  // Kunci dan arah disimpan sebagai satu nilai: keduanya selalu berubah
+  // bersamaan, dan menyimpannya terpisah membuka celah tersimpan separuh.
+  const [{ key: sortKey, dir: sortDir }, setSort] = usePersistedState<{ key: K | null; dir: SortDir }>(
+    persistKey ? `${persistKey}.urut` : undefined,
+    { key: initialKey, dir: 'asc' }
+  );
 
   function toggleSort(key: K) {
     if (key !== sortKey) {
-      setSortKey(key);
-      setSortDir('asc');
+      setSort({ key, dir: 'asc' });
       return;
     }
     if (sortDir === 'asc') {
-      setSortDir('desc');
+      setSort({ key, dir: 'desc' });
       return;
     }
-    setSortKey(null);
-    setSortDir('asc');
+    setSort({ key: null, dir: 'asc' });
   }
 
   function sortRows<T>(rows: T[], get: (row: T, key: K) => SortValue): T[] {
@@ -95,20 +152,35 @@ export interface Pagination<T> {
  * `resetKey` berubah — tanpa itu pengguna bisa terdampar di halaman 7 yang
  * kosong setelah memfilter, atau tetap di halaman 61 setelah menekan "urut
  * nama A–Z" padahal yang ingin dilihat justru baris teratas.
+ *
+ * Isi `persistKey` agar nomor halaman dan jumlah baris per halaman diingat
+ * ketika pengguna meninggalkan halaman lalu kembali (lihat usePersistedState).
  */
 export function usePagination<T>(
   rows: T[],
   defaultSize: number = DEFAULT_PAGE_SIZE,
-  resetKey?: string
+  resetKey?: string,
+  persistKey?: string
 ): Pagination<T> {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSizeRaw] = useState(defaultSize);
+  const [page, setPage] = usePersistedState(persistKey ? `${persistKey}.halaman` : undefined, 1);
+  const [pageSize, setPageSizeRaw] = usePersistedState(
+    persistKey ? `${persistKey}.perHalaman` : undefined,
+    defaultSize
+  );
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const sebelumnya = useRef<{ total: number; pageSize: number; resetKey?: string } | null>(null);
   useEffect(() => {
-    setPage(1);
-  }, [total, pageSize, resetKey]);
+    const prev = sebelumnya.current;
+    sebelumnya.current = { total, pageSize, resetKey };
+    // Render pertama, dan saat data selesai dimuat (0 → sekian baris), bukan
+    // perbuatan pengguna. Keduanya harus dilewati, jika tidak halaman yang
+    // diingat dari kunjungan sebelumnya langsung dilempar balik ke 1 justru
+    // pada saat hendak dipulihkan.
+    if (prev === null || (prev.total === 0 && total > 0)) return;
+    if (prev.total !== total || prev.pageSize !== pageSize || prev.resetKey !== resetKey) setPage(1);
+  }, [total, pageSize, resetKey, setPage]);
 
   // Jaring pengaman bila jumlah baris menyusut tanpa memicu efek di atas.
   const safePage = Math.min(page, totalPages);

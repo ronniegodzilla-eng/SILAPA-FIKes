@@ -9,7 +9,7 @@ import { NPM_RE, parseSheetFile, failedRowsCsv } from '@/lib/import-utils';
 import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
-import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
+import { PaginationBar, SortableTh, useTableSort, usePagination, usePersistedState } from '@/components/table-tools';
 import { updateSubmissionJumlah, type ImportLengkapRow } from '@/lib/firestore/data';
 import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
@@ -81,10 +81,16 @@ export default function DaftarBimbinganPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [query, setQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('semua');
-  const [filterProdi, setFilterProdi] = useState('semua');
-  const [quickEdit, setQuickEdit] = useState(false);
+  // Tampilan daftar diingat selama tab terbuka. Dosen PA berkali-kali masuk ke
+  // form seorang mahasiswa lalu kembali ke sini; tanpa ini pencarian, filter,
+  // urutan, nomor halaman, dan jumlah baris kembali ke setelan awal setiap kali
+  // — dan harus disusun ulang dari nol sebelum bisa melanjutkan ke mahasiswa
+  // berikutnya. Kuncinya dipakai bersama oleh sort & paginasi di bawah.
+  const INGAT = 'dosen.bimbingan';
+  const [query, setQuery] = usePersistedState(`${INGAT}.cari`, '');
+  const [filterStatus, setFilterStatus] = usePersistedState(`${INGAT}.status`, 'semua');
+  const [filterProdi, setFilterProdi] = usePersistedState(`${INGAT}.prodi`, 'semua');
+  const [quickEdit, setQuickEdit] = usePersistedState(`${INGAT}.isiCepat`, false);
 
   // Tambah Mahasiswa (dosen menambah bimbingannya sendiri)
   const [tambahOpen, setTambahOpen] = useState(false);
@@ -106,7 +112,7 @@ export default function DaftarBimbinganPage() {
   const [importToast, setImportToast] = useState('');
   const [importErr, setImportErr] = useState('');
 
-  const sort = useTableSort<SortKey>();
+  const sort = useTableSort<SortKey>(null, INGAT);
   const q = query.trim().toLowerCase();
   const prodiOptions = Array.from(new Set(recordList.map((m) => m.prodi))).sort();
   // Pengunduran diri yang sudah disahkan Wakil Dekan I mengeluarkan mahasiswa
@@ -131,7 +137,7 @@ export default function DaftarBimbinganPage() {
       default: return m[key as keyof typeof m] as never;
     }
   });
-  const p = usePagination(sorted, undefined, sort.sortSig);
+  const p = usePagination(sorted, undefined, sort.sortSig, INGAT);
   const rows = p.pageRows;
 
   const importValid = importRows.filter((r) => r.valid);
