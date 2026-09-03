@@ -54,15 +54,26 @@ export async function GET(req: NextRequest) {
     const semK3KL = genap ? [2, 4, 6, 8, 10, 12, 14] : [1, 3, 5, 7, 9, 11, 13];
     const semS2KM = genap ? [2, 4] : [1, 3];
 
+    // IP semester dan IPK dilaporkan sebagai DUA kolom, masing-masing dengan
+    // pembaginya sendiri: satu prodi bisa sudah punya IPK sementara IP semester
+    // periode ini belum terisi. Digabung jadi satu angka, prodi seperti itu
+    // terbaca ber-"IPK" 0,00 padahal IPK-nya baik.
+    function rata(records: any[], ambil: (l: any) => number | null | undefined) {
+      const terisi = records.filter((l) => l.status === 'aktif' && ambil(l) != null);
+      return terisi.length
+        ? Number((terisi.reduce((sum, l) => sum + (ambil(l) as number), 0) / terisi.length).toFixed(2))
+        : '—';
+    }
+
     function prodiStats(records: any[], semesters: number[]): (number | string)[] {
       const semCounts = semesters.map(
         (s) => records.filter((l) => l.status === 'aktif' && l.semesterKe === s).length
       );
-      const withIp = records.filter((l) => l.status === 'aktif' && l.akademik?.ipKhs != null);
-      const ipk = withIp.length
-        ? Number((withIp.reduce((sum, l) => sum + l.akademik.ipKhs, 0) / withIp.length).toFixed(2))
-        : '—';
-      return [...semCounts, ipk];
+      return [
+        ...semCounts,
+        rata(records, (l) => l.akademik?.ipKhs),
+        rata(records, (l) => l.akademik?.ipk),
+      ];
     }
 
     let totCuti = 0, totNonaktif = 0, totRekDO = 0, totUndurDiri = 0, totHima = 0, totUkm = 0;
@@ -170,6 +181,11 @@ export async function GET(req: NextRequest) {
         col++;
       });
       const semEnd = col - 1;
+      // Dua kolom rata-rata berdampingan; keduanya menyatu vertikal melintasi
+      // dua baris header, seperti kolom IPK tunggal sebelumnya.
+      row0[col] = ''; row1[col] = 'IP SEMESTER RATA-RATA'; row2[col] = '';
+      merges.push({ s: { r: TITLE_ROWS + 1, c: col }, e: { r: TITLE_ROWS + 2, c: col } });
+      col++;
       row0[col] = ''; row1[col] = 'IPK RATA-RATA'; row2[col] = '';
       merges.push({ s: { r: TITLE_ROWS + 1, c: col }, e: { r: TITLE_ROWS + 2, c: col } });
       const ipkCol = col;

@@ -191,13 +191,22 @@ export default function VerifikasiPage() {
             {detailIpk.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: colors.muted, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-                  IPK rata-rata per prodi bimbingan
+                  Rata-rata IP semester &amp; IPK per prodi bimbingan
                 </span>
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(detailIpk.length, 3)},1fr)`, gap: 10 }}>
                   {detailIpk.map((p) => (
                     <div key={p.prodi} style={{ background: colors.subtle, borderRadius: 9, padding: 11, textAlign: 'center' }}>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: colors.ink }}>{p.rata}</div>
-                      <span style={{ fontSize: 10.5, color: colors.muted }}>{p.prodi} · n={p.n}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: colors.muted, textTransform: 'uppercase' }}>{p.prodi}</span>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 4 }}>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: colors.ink }}>{p.rataIp}</div>
+                          <span style={{ fontSize: 10, color: colors.muted }}>IP · n={p.nIp}</span>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: colors.green }}>{p.rataIpk}</div>
+                          <span style={{ fontSize: 10, color: colors.muted }}>IPK · n={p.nIpk}</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

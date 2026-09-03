@@ -132,15 +132,27 @@ export default function DosenDashboardPage() {
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
               {rekap.ipkPerProdi.length > 0 ? (
-                rekap.ipkPerProdi.map((p) => (
+                // IP semester dan IPK ditampilkan sebagai dua kotak terpisah per
+                // prodi, dengan n masing-masing. Satu angka gabungan pernah
+                // membuat prodi tampak ber-rata-rata 0,00 padahal IPK-nya baik —
+                // IP semesternya yang belum terisi, bukan prestasinya yang nol.
+                rekap.ipkPerProdi.flatMap((p) => [
                   <RekapTile
-                    key={p.prodi}
+                    key={`${p.prodi}-ip`}
+                    label={`IP semester rata-rata ${p.prodi}`}
+                    value={<span>{p.rataIp} <span style={{ fontSize: 12, fontWeight: 600, color: colors.faint }}>· n={p.nIp}</span></span>}
+                  />,
+                  <RekapTile
+                    key={`${p.prodi}-ipk`}
                     label={`IPK rata-rata ${p.prodi}`}
-                    value={<span>{p.rata} <span style={{ fontSize: 12, fontWeight: 600, color: colors.faint }}>· n={p.n}</span></span>}
-                  />
-                ))
+                    value={<span>{p.rataIpk} <span style={{ fontSize: 12, fontWeight: 600, color: colors.faint }}>· n={p.nIpk}</span></span>}
+                  />,
+                ])
               ) : (
-                <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
+                <>
+                  <RekapTile label="IP semester rata-rata bimbingan" value={rekap.ipRataStr} />
+                  <RekapTile label="IPK rata-rata bimbingan" value={rekap.ipkRataStr} />
+                </>
               )}
               <RekapTile label="Aktif organisasi" value={rekap.organisasi} />
               <RekapTile label="Penerima beasiswa" value={rekap.beasiswa} />

@@ -94,16 +94,36 @@ export function computeDosenStats(list: MahasiswaRecord[]): DosenStats {
 
 export interface ProdiIpk {
   prodi: string;
-  rata: string;
-  n: number;
+  /** Rata-rata IP semester (KHS periode ini). */
+  rataIp: string;
+  nIp: number;
+  /** Rata-rata IPK kumulatif. */
+  rataIpk: string;
+  nIpk: number;
 }
 
 /**
- * IPK rata-rata per prodi dari satu kumpulan record (mis. bimbingan seorang
- * dosen PA). Hanya prodi yang punya ≥1 mahasiswa AKTIF yang dikembalikan; rata
- * = mean IP mahasiswa aktif yang IP-nya sudah terisi (atau "—" bila belum ada).
- * Dipakai di dashboard dosen dan modal verifikasi wadek (PRD §6) — "pembimbing
- * melihat rata-rata IP per prodi dari anak bimbingannya".
+ * Rata-rata satu kolom akademik, "—" bila belum ada yang terisi.
+ * Dipakai bersama oleh dashboard dosen, dashboard wadek, dan ekspor.
+ */
+function rataKolom(
+  list: MahasiswaRecord[],
+  ambil: (m: MahasiswaRecord) => number | null | undefined
+): { rata: string; n: number } {
+  const terisi = list.filter((m) => ambil(m) != null);
+  if (!terisi.length) return { rata: '—', n: 0 };
+  const mean = terisi.reduce((sum, m) => sum + (ambil(m) as number), 0) / terisi.length;
+  return { rata: mean.toFixed(2), n: terisi.length };
+}
+
+/**
+ * Rata-rata IP semester DAN IPK per prodi dari satu kumpulan record (mis.
+ * bimbingan seorang dosen PA). Hanya prodi yang punya ≥1 mahasiswa AKTIF yang
+ * dikembalikan. Dipakai di dashboard dosen dan modal verifikasi wadek.
+ *
+ * Keduanya dilaporkan terpisah, dengan n masing-masing: IP semester bisa belum
+ * terisi sementara IPK sudah, dan sebaliknya — menggabungkannya jadi satu angka
+ * pernah membuat prodi tampak ber-rata-rata 0,00 padahal IPK-nya baik.
  */
 export function computeIpkPerProdi(list: MahasiswaRecord[]): ProdiIpk[] {
   const order = ['K3', 'KL', 'S2KM'];
@@ -112,17 +132,17 @@ export function computeIpkPerProdi(list: MahasiswaRecord[]): ProdiIpk[] {
   return Array.from(activeProdi)
     .sort((a, b) => order.indexOf(a) - order.indexOf(b))
     .map((prodi) => {
-      const withIp = list.filter(
-        (m) => m.prodi === prodi && m.status === 'aktif' && m.akademik.ipKhs != null
-      );
-      const mean = withIp.length
-        ? withIp.reduce((s, m) => s + (m.akademik.ipKhs as number), 0) / withIp.length
-        : 0;
-      return { prodi, rata: withIp.length ? mean.toFixed(2) : '—', n: withIp.length };
+      const aktif = list.filter((m) => m.prodi === prodi && m.status === 'aktif');
+      const ip = rataKolom(aktif, (m) => m.akademik.ipKhs);
+      const ipk = rataKolom(aktif, (m) => m.akademik.ipk);
+      return { prodi, rataIp: ip.rata, nIp: ip.n, rataIpk: ipk.rata, nIpk: ipk.n };
     });
 }
 
 export interface DosenRekap {
+  /** Rata-rata IP semester seluruh bimbingan aktif. */
+  ipRataStr: string;
+  /** Rata-rata IPK kumulatif seluruh bimbingan aktif. */
   ipkRataStr: string;
   /** Rincian IPK rata-rata per prodi bimbingan (dosen sering lintas prodi). */
   ipkPerProdi: ProdiIpk[];
@@ -135,12 +155,10 @@ export interface DosenRekap {
 
 /** Personal live rekap for a dosen (PRD §6, §5.2 D1). */
 export function computeDosenRekap(list: MahasiswaRecord[]): DosenRekap {
-  const aktifWithIp = list.filter((m) => m.status === 'aktif' && m.akademik.ipKhs != null);
-  const ipkRata = aktifWithIp.length
-    ? aktifWithIp.reduce((sum, m) => sum + (m.akademik.ipKhs as number), 0) / aktifWithIp.length
-    : 0;
+  const aktif = list.filter((m) => m.status === 'aktif');
   return {
-    ipkRataStr: ipkRata ? ipkRata.toFixed(2) : '—',
+    ipRataStr: rataKolom(aktif, (m) => m.akademik.ipKhs).rata,
+    ipkRataStr: rataKolom(aktif, (m) => m.akademik.ipk).rata,
     ipkPerProdi: computeIpkPerProdi(list),
     organisasi: list.filter((m) => m.nonAkademik.ukm || m.nonAkademik.hima || m.nonAkademik.bem).length,
     beasiswa: list.filter((m) => m.nonAkademik.beasiswa.ada).length,
@@ -190,7 +208,7 @@ export interface WadekAggregates {
      * angka tersebut, dan pembacanya harus tahan terhadap itu. */
     mengundurkanDiri?: number;
   };
-  prodiIpk: { prodi: string; rata: string; n: number }[];
+  prodiIpk: ProdiIpk[];
   nonAkademik: { organisasi: number; beasiswa: number; prestasi: number };
   masterField: { pkkmb: string; toefl: string; esq: string; semkes: string };
   skripsiTahap: { label: string; count: number }[];
@@ -229,14 +247,11 @@ export function computeWadekAggregates(
 
   // IPK rata-rata prodi: mean over ALL active records with ipKhs — never a
   // mean of per-dosen means (PRD §6).
-  const prodiIpk = (['K3', 'KL', 'S2KM'] as const).map((prodi) => {
-    const withIp = records.filter(
-      (m) => m.prodi === prodi && m.status === 'aktif' && m.akademik.ipKhs != null
-    );
-    const mean = withIp.length
-      ? withIp.reduce((s, m) => s + (m.akademik.ipKhs as number), 0) / withIp.length
-      : 0;
-    return { prodi, rata: withIp.length ? mean.toFixed(2) : '—', n: withIp.length };
+  const prodiIpk: ProdiIpk[] = (['K3', 'KL', 'S2KM'] as const).map((prodi) => {
+    const aktif = records.filter((m) => m.prodi === prodi && m.status === 'aktif');
+    const ip = rataKolom(aktif, (m) => m.akademik.ipKhs);
+    const ipk = rataKolom(aktif, (m) => m.akademik.ipk);
+    return { prodi, rataIp: ip.rata, nIp: ip.n, rataIpk: ipk.rata, nIpk: ipk.n };
   });
 
   // Skripsi distribution over final-year students (semesterKe ≥ 7).
@@ -331,35 +346,43 @@ export function computeWadekAggregates(
 export interface DosenIpkRow {
   dosenUid: string;
   dosen: string;
-  rata: string;
-  n: number;
+  /** Rata-rata IP semester bimbingan dosen ini di prodi tsb. */
+  rataIp: string;
+  nIp: number;
+  /** Rata-rata IPK kumulatif. */
+  rataIpk: string;
+  nIpk: number;
 }
 
-/** IPK rata-rata per dosen PA dalam satu prodi (untuk drill-down kartu IPK prodi). */
+/** Rata-rata IP & IPK per dosen PA dalam satu prodi (drill-down kartu prodi). */
 export function computeIpkPerDosen(
   records: MahasiswaRecord[],
   dosenNamaByUid: Map<string, string>,
   prodi: string
 ): DosenIpkRow[] {
-  const scoped = records.filter(
-    (m) => m.prodi === prodi && m.status === 'aktif' && m.akademik.ipKhs != null
-  );
-  const byDosen = new Map<string, { sum: number; n: number }>();
+  // Dosen ikut terdaftar bila punya mahasiswa aktif di prodi ini, meski IP
+  // maupun IPK-nya belum ada satu pun — barisnya tampil "—", bukan hilang,
+  // supaya Wakil Dekan I melihat siapa yang datanya memang belum masuk.
+  const scoped = records.filter((m) => m.prodi === prodi && m.status === 'aktif');
+  const byDosen = new Map<string, MahasiswaRecord[]>();
   scoped.forEach((m) => {
     const uid = m.dosenPaUid ?? '';
-    const cur = byDosen.get(uid) ?? { sum: 0, n: 0 };
-    cur.sum += m.akademik.ipKhs as number;
-    cur.n += 1;
-    byDosen.set(uid, cur);
+    byDosen.set(uid, [...(byDosen.get(uid) ?? []), m]);
   });
   return Array.from(byDosen.entries())
-    .map(([uid, { sum, n }]) => ({
-      dosenUid: uid,
-      dosen: dosenNamaByUid.get(uid) ?? '—',
-      rata: (sum / n).toFixed(2),
-      n,
-    }))
-    .sort((a, b) => b.n - a.n);
+    .map(([uid, list]) => {
+      const ip = rataKolom(list, (m) => m.akademik.ipKhs);
+      const ipk = rataKolom(list, (m) => m.akademik.ipk);
+      return {
+        dosenUid: uid,
+        dosen: dosenNamaByUid.get(uid) ?? '—',
+        rataIp: ip.rata,
+        nIp: ip.n,
+        rataIpk: ipk.rata,
+        nIpk: ipk.n,
+      };
+    })
+    .sort((a, b) => b.nIpk - a.nIpk || b.nIp - a.nIp);
 }
 
 export type DrilldownKey =

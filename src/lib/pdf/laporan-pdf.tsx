@@ -118,6 +118,23 @@ function cW(w: number) {
   return { width: `${w}%` } as const;
 }
 
+/** Rata-rata satu kolom nilai, "—" bila belum ada yang terisi. */
+function rataKolom(
+  rows: PdfLaporanRow[],
+  ambil: (r: PdfLaporanRow) => number | null | undefined
+): string {
+  const terisi = rows.filter((r) => ambil(r) != null);
+  if (!terisi.length) return '—';
+  return (terisi.reduce((sum, r) => sum + (ambil(r) as number), 0) / terisi.length).toFixed(2);
+}
+
+function jumlahTerisi(
+  rows: PdfLaporanRow[],
+  ambil: (r: PdfLaporanRow) => number | null | undefined
+): number {
+  return rows.filter((r) => ambil(r) != null).length;
+}
+
 function ya(v: boolean) {
   return v ? 'Sudah' : 'Belum';
 }
@@ -239,7 +256,26 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
               <Text style={[s.td, cW(23)]}>{r.mkNilaiDE.length ? r.mkNilaiDE.join(', ') : '—'}</Text>
             </View>
           ))}
+          {/* Baris rata-rata. IP semester dan IPK dihitung terpisah dengan
+              pembagi masing-masing: satu kolom bisa sudah terisi sementara yang
+              lain belum, dan satu angka gabungan menyembunyikan bedanya. */}
+          <View style={s.tr} wrap={false}>
+            <Text style={[s.td, cW(4), s.center]}> </Text>
+            <Text style={[s.td, cW(14)]}> </Text>
+            <Text style={[s.td, cW(24), { fontFamily: 'Helvetica-Bold' }]}>Rata-rata</Text>
+            <Text style={[s.td, cW(6), s.center]}> </Text>
+            <Text style={[s.td, cW(7), s.center]}> </Text>
+            <Text style={[s.td, cW(7), s.center, { fontFamily: 'Helvetica-Bold' }]}>{rataKolom(aktif, (r) => r.ipKhs)}</Text>
+            <Text style={[s.td, cW(7), s.center, { fontFamily: 'Helvetica-Bold' }]}>{rataKolom(aktif, (r) => r.ipk)}</Text>
+            <Text style={[s.td, cW(8), s.center]}> </Text>
+            <Text style={[s.td, cW(23)]}> </Text>
+          </View>
         </View>
+        <Text style={{ fontFamily: 'Helvetica', fontSize: 7, color: '#5C6B60', marginTop: 3 }}>
+          Rata-rata dihitung hanya dari mahasiswa aktif yang kolomnya sudah terisi —
+          IP semester dari {jumlahTerisi(aktif, (r) => r.ipKhs)} mahasiswa, IPK dari{' '}
+          {jumlahTerisi(aktif, (r) => r.ipk)} mahasiswa.
+        </Text>
 
         {/* B. Non-Akademik */}
         <Text style={s.section}>

@@ -120,7 +120,13 @@ export default function WadekDashboardPage() {
       } else {
         const { fetchRekapCache } = await import('@/lib/firestore/data');
         const cached = await fetchRekapCache(periode.id);
-        if (cached) {
+        // Cache yang ditulis sebelum IP semester & IPK dipisah hanya punya satu
+        // angka gabungan. Diperlakukan seperti belum pernah dihitung supaya
+        // dihitung ulang sendiri — tanpa ini kartu prodi tampil kosong sampai
+        // ada orang yang kebetulan menekan Segarkan.
+        const bentukLama =
+          !!cached && !cached.aggregates.prodiIpk?.every((x) => 'rataIpk' in x);
+        if (cached && !bentukLama) {
           setAgg(cached.aggregates);
           setComputedAt(
             (cached.computedAt as any)?.toDate ? (cached.computedAt as any).toDate() : null
@@ -205,12 +211,26 @@ export default function WadekDashboardPage() {
             key={p.prodi}
             onClick={() => openDrilldown({ type: 'ipk', prodi: p.prodi })}
             style={{ cursor: 'pointer' }}
-            title="Klik untuk lihat rata-rata IPK per dosen PA"
+            title="Klik untuk lihat rata-rata IP & IPK per dosen PA"
           >
             <Card padding="18px 20px">
-              <span style={{ fontSize: 12, fontWeight: 700, color: colors.muted, textTransform: 'uppercase' }}>IPK Rata-rata {p.prodi}</span>
-              <div style={{ fontFamily: "'Lora',serif", fontSize: 26, fontWeight: 700, color: colors.ink, marginTop: 6 }}>{p.rata}</div>
-              <span style={{ fontSize: 11.5, color: colors.faint }}>n = {p.n} mahasiswa aktif</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: colors.muted, textTransform: 'uppercase' }}>{p.prodi}</span>
+              {/* Dua angka berdampingan: IP semester periode ini dan IPK
+                  kumulatif, masing-masing dengan n-nya. Sebelumnya hanya IP
+                  semester yang tampil tapi berlabel "IPK", sehingga prodi yang
+                  IP-nya belum terisi terbaca ber-IPK 0,00. */}
+              <div style={{ display: 'flex', gap: 20, marginTop: 8, flexWrap: 'wrap' }}>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: colors.faint, textTransform: 'uppercase' }}>IP semester</span>
+                  <div style={{ fontFamily: "'Lora',serif", fontSize: 24, fontWeight: 700, color: colors.ink }}>{p.rataIp}</div>
+                  <span style={{ fontSize: 11.5, color: colors.faint }}>n = {p.nIp}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: colors.faint, textTransform: 'uppercase' }}>IPK</span>
+                  <div style={{ fontFamily: "'Lora',serif", fontSize: 24, fontWeight: 700, color: colors.green }}>{p.rataIpk}</div>
+                  <span style={{ fontSize: 11.5, color: colors.faint }}>n = {p.nIpk}</span>
+                </div>
+              </div>
             </Card>
           </div>
         ))}
@@ -424,7 +444,7 @@ function DrilldownModal({
 }) {
   const title =
     drilldown.type === 'ipk'
-      ? `IPK rata-rata per dosen PA — ${drilldown.prodi}`
+      ? `Rata-rata IP semester & IPK per dosen PA — ${drilldown.prodi}`
       : DRILLDOWN_LABEL[drilldown.key];
 
   return (
@@ -505,12 +525,25 @@ function KrsFlagTable({ rows }: { rows: { npm: string; nama: string; prodi: stri
 }
 
 function IpkPerDosenTable({ records, dosenNamaByUid, prodi }: { records: MahasiswaRecord[]; dosenNamaByUid: Map<string, string>; prodi: string }) {
-  type Key = 'dosen' | 'rata' | 'n';
+  type Key = 'dosen' | 'rataIp' | 'nIp' | 'rataIpk' | 'nIpk';
   const sort = useTableSort<Key>();
   const rows = computeIpkPerDosen(records, dosenNamaByUid, prodi);
-  const p = usePagination(sort.sortRows(rows, (r, key) => r[key] as never), undefined, sort.sortSig);
+  // Kolom rata-rata diurut sebagai ANGKA, bukan teks: "—" (belum ada data)
+  // dibuang ke bawah oleh compareValues, dan 9,5 tidak lagi berada di bawah
+  // 10 seperti pada urutan leksikal.
+  const p = usePagination(
+    sort.sortRows(rows, (r, key) => {
+      if (key === 'rataIp' || key === 'rataIpk') {
+        const v = Number(r[key]);
+        return Number.isFinite(v) ? v : null;
+      }
+      return r[key] as never;
+    }),
+    undefined,
+    sort.sortSig
+  );
   if (rows.length === 0) {
-    return <span style={{ fontSize: 12.5, color: colors.faint }}>Belum ada mahasiswa aktif dengan IPK tercatat di prodi ini.</span>;
+    return <span style={{ fontSize: 12.5, color: colors.faint }}>Belum ada mahasiswa aktif di prodi ini.</span>;
   }
   return (
     <>
@@ -518,16 +551,20 @@ function IpkPerDosenTable({ records, dosenNamaByUid, prodi }: { records: Mahasis
         <thead>
           <tr style={{ background: colors.subtle }}>
             <SortableTh label="Dosen PA" sortKey="dosen" sort={sort} style={TH} />
-            <SortableTh label="IPK Rata-rata" sortKey="rata" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
-            <SortableTh label="n" sortKey="n" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
+            <SortableTh label="IP semester" sortKey="rataIp" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
+            <SortableTh label="n" sortKey="nIp" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
+            <SortableTh label="IPK" sortKey="rataIpk" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
+            <SortableTh label="n" sortKey="nIpk" sort={sort} style={{ ...TH, textAlign: 'right' }} align="right" />
           </tr>
         </thead>
         <tbody>
           {p.pageRows.map((r) => (
             <tr key={r.dosenUid} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
               <td style={{ padding: '9px 24px', fontSize: 13, fontWeight: 600, color: colors.ink }}>{r.dosen}</td>
-              <td style={{ padding: '9px 24px', fontSize: 13, color: colors.ink, textAlign: 'right' }}>{r.rata}</td>
-              <td style={{ padding: '9px 24px', fontSize: 12.5, color: colors.muted, textAlign: 'right' }}>{r.n}</td>
+              <td style={{ padding: '9px 24px', fontSize: 13, color: colors.ink, textAlign: 'right' }}>{r.rataIp}</td>
+              <td style={{ padding: '9px 24px', fontSize: 12.5, color: colors.muted, textAlign: 'right' }}>{r.nIp}</td>
+              <td style={{ padding: '9px 24px', fontSize: 13, fontWeight: 700, color: colors.green, textAlign: 'right' }}>{r.rataIpk}</td>
+              <td style={{ padding: '9px 24px', fontSize: 12.5, color: colors.muted, textAlign: 'right' }}>{r.nIpk}</td>
             </tr>
           ))}
         </tbody>
