@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data-context';
+import { useAuth } from '@/lib/auth-context';
 import { useSetHeader } from '@/components/AppShell';
 import { konsultasiJenisLabel, computeSemesterKe } from '@/lib/compute';
 import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
@@ -16,7 +17,8 @@ export default function FormLaporanPage() {
   const params = useParams<{ npm: string }>();
   const npm = params.npm;
   const router = useRouter();
-  const { records, updateField, saveStatus, periode, ajukanPengunduran, batalkanPengunduran } = useData();
+  const { records, updateField, saveStatus, periode, dosenRoster, ajukanPengunduran, batalkanPengunduran } = useData();
+  const { appUser } = useAuth();
   const [modalUndur, setModalUndur] = useState(false);
   const rec = records[npm];
 
@@ -25,6 +27,14 @@ export default function FormLaporanPage() {
   if (!rec) {
     return <div style={{ fontSize: 13, color: colors.muted }}>Data mahasiswa tidak ditemukan.</div>;
   }
+
+  // Laporan yang sudah dikirim/disahkan dibekukan Security Rules: setiap
+  // tulisan ditolak. Sebelum ini formnya tetap terlihat bisa diisi dan dosen
+  // baru tahu setelah mengetik — lalu disuruh "periksa koneksi", padahal
+  // jaringannya tidak apa-apa. Untuk dosen, roster hanya memuat kirimannya
+  // sendiri.
+  const kiriman = dosenRoster.find((d) => d.dosenUid === appUser?.uid)?.statusKirim;
+  const laporanBeku = kiriman === 'dikirim' || kiriman === 'diverifikasi';
 
   const pengunduran = rec.pengunduran ?? null;
   const menungguValidasi = pengunduran?.status === 'diajukan';
@@ -62,19 +72,53 @@ export default function FormLaporanPage() {
             style={{
               width: 7, height: 7, borderRadius: '50%',
               background:
-                saveStatus === 'error' ? colors.danger
+                saveStatus === 'error' || saveStatus === 'terkunci' ? colors.danger
                 : saveStatus === 'saving' ? colors.amber
                 : colors.green,
             }}
           />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: saveStatus === 'error' ? colors.danger : colors.muted }}>
-            {saveStatus === 'error'
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: saveStatus === 'error' || saveStatus === 'terkunci' ? colors.danger : colors.muted }}>
+            {saveStatus === 'terkunci'
+              ? 'Tidak tersimpan — laporan sudah dikirim dan tidak bisa diubah'
+              : saveStatus === 'error'
               ? 'Gagal menyimpan — periksa koneksi, lalu ubah field untuk mencoba lagi'
               : saveStatus === 'saving' ? 'Menyimpan…' : 'Tersimpan'}
           </span>
         </div>
       </div>
 
+      {laporanBeku && (
+        <Card padding="14px 18px" style={{ background: '#FBF1EF', border: `1px solid ${colors.danger}` }}>
+          <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+            <Icon path="M6 10V8a6 6 0 1112 0v2M5 10h14v10H5z" size={17} width={2} stroke={colors.danger} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.danger }}>
+                {kiriman === 'diverifikasi'
+                  ? 'Laporan sudah disahkan Wakil Dekan I — tidak bisa diubah'
+                  : 'Laporan sudah dikirim — tidak bisa diubah'}
+              </div>
+              <div style={{ fontSize: 12.5, color: colors.muted, marginTop: 3, lineHeight: 1.5 }}>
+                Isian di bawah dikunci supaya perubahan tidak hilang percuma. Bila masih ada
+                yang perlu diperbaiki, minta Wakil Dekan I mengembalikan laporan Anda lebih
+                dulu — sesudah dikembalikan, form ini terbuka lagi dan laporannya dikirim ulang.
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Seluruh isian dibungkus fieldset: satu atribut disabled mematikan
+          semua input/select/tombol di dalamnya, jadi tidak ada field yang
+          luput ketika laporan beku. Tautan navigasi (div onClick) tidak ikut
+          mati, sehingga "Lihat Riwayat" dan "Kembali" tetap bisa dipakai. */}
+      <fieldset
+        disabled={laporanBeku}
+        style={{
+          border: 0, padding: 0, margin: 0, minInlineSize: 0,
+          display: 'flex', flexDirection: 'column', gap: 18,
+          opacity: laporanBeku ? 0.62 : 1,
+        }}
+      >
       {/* identity + riwayat */}
       <Card padding="20px 24px" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
@@ -382,6 +426,8 @@ export default function FormLaporanPage() {
           <Pill label={KELENGKAPAN_LABEL[rec.statusPengisian]} color={kp.color} bg={kp.bg} />
         </div>
       </Card>
+
+      </fieldset>
 
       {modalUndur && (
         <PengunduranModal

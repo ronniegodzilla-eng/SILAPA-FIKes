@@ -23,7 +23,12 @@ import type {
   TandaTangan,
 } from './types';
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+/**
+ * 'terkunci' dibedakan dari 'error': penolakan Security Rules tidak akan
+ * pernah berhasil kalau diulang, dan menampilkannya sebagai gangguan koneksi
+ * membuat dosen mengejar masalah jaringan yang tidak ada.
+ */
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'terkunci';
 
 interface DataContextValue {
   loading: boolean;
@@ -161,7 +166,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await data.persistMahasiswaField(p.id, entry.rec, entry.path);
         if (pendingSaves.current.size === 0) setSaveStatus('saved');
         return;
-      } catch {
+      } catch (e) {
+        // Ditolak Security Rules — laporan sudah dikirim/disahkan, atau
+        // memang bukan wewenang penulisnya. Mengulang tidak akan menolong,
+        // jadi berhenti sekarang alih-alih menghabiskan tiga percobaan
+        // berjeda lalu menyalahkan koneksi.
+        if ((e as { code?: string })?.code === 'permission-denied') {
+          setSaveStatus('terkunci');
+          return;
+        }
         await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
       }
     }

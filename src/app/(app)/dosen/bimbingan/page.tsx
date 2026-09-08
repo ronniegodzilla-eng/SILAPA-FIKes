@@ -71,7 +71,7 @@ function parseNum(v: string, opts: { int?: boolean; min: number; max: number }):
 export default function DaftarBimbinganPage() {
   const router = useRouter();
   const { appUser } = useAuth();
-  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists, periode } = useData();
+  const { recordList, records, updateField, importLengkap, submitDosenLaporan, reload, addMahasiswa, checkNpmExists, periode, dosenRoster } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Muat ulang setiap kali halaman ini dibuka — supaya perubahan yang baru
@@ -91,6 +91,13 @@ export default function DaftarBimbinganPage() {
   const [filterStatus, setFilterStatus] = usePersistedState(`${INGAT}.status`, 'semua');
   const [filterProdi, setFilterProdi] = usePersistedState(`${INGAT}.prodi`, 'semua');
   const [quickEdit, setQuickEdit] = usePersistedState(`${INGAT}.isiCepat`, false);
+  // Laporan yang sudah dikirim/disahkan dibekukan Security Rules. Halaman ini
+  // tidak punya penunjuk status simpan sama sekali, jadi mengetik lewat mode
+  // isi cepat dalam keadaan itu gagal TANPA pesan apa pun — nilainya tampak
+  // masuk lalu hilang saat halaman dimuat ulang. Modenya ditutup sekalian.
+  const kiriman = dosenRoster.find((d) => d.dosenUid === appUser?.uid)?.statusKirim;
+  const laporanBeku = kiriman === 'dikirim' || kiriman === 'diverifikasi';
+  const isiCepat = quickEdit && !laporanBeku;
 
   // Tambah Mahasiswa (dosen menambah bimbingannya sendiri)
   const [tambahOpen, setTambahOpen] = useState(false);
@@ -448,13 +455,18 @@ export default function DaftarBimbinganPage() {
             Import Excel
           </div>
           <div
-            onClick={() => setQuickEdit((v) => !v)}
+            onClick={() => { if (!laporanBeku) setQuickEdit((v) => !v); }}
+            title={
+              laporanBeku
+                ? `Laporan sudah ${kiriman === 'diverifikasi' ? 'disahkan Wakil Dekan I' : 'dikirim'} — isian dikunci sampai dikembalikan.`
+                : 'Sunting SKS, IP, IPK, semester, dan kelas langsung dari tabel'
+            }
             style={{
               display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
-              cursor: 'pointer', fontSize: 13, fontWeight: 700,
-              border: `1px solid ${quickEdit ? colors.green : colors.border}`,
-              color: quickEdit ? colors.white : colors.ink,
-              background: quickEdit ? colors.green : colors.surface,
+              cursor: laporanBeku ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700,
+              border: `1px solid ${isiCepat ? colors.green : colors.border}`,
+              color: laporanBeku ? colors.faint : isiCepat ? colors.white : colors.ink,
+              background: isiCepat ? colors.green : laporanBeku ? colors.subtle : colors.surface,
             }}
           >
             <Icon path="M4 17l4 4L20 9l-4-4L4 17Z M13 4l4 4" size={15} />
@@ -532,7 +544,7 @@ export default function DaftarBimbinganPage() {
                   </td>
                   <td style={{ padding: '11px 16px', fontSize: 13, color: colors.ink }}>{m.prodi}</td>
                   <td style={{ padding: '8px 16px' }}>
-                    {quickEdit ? (
+                    {isiCepat ? (
                       <input
                         type="number"
                         min={1}
@@ -553,7 +565,7 @@ export default function DaftarBimbinganPage() {
                     )}
                   </td>
                   <td style={{ padding: '8px 16px' }}>
-                    {quickEdit ? (
+                    {isiCepat ? (
                       <select
                         value={m.kelas}
                         onChange={(e) => updateField(m.npm, 'kelas', e.target.value)}
@@ -567,7 +579,7 @@ export default function DaftarBimbinganPage() {
                     )}
                   </td>
                   <td style={{ padding: '8px 16px' }}>
-                    {quickEdit ? (
+                    {isiCepat ? (
                       <input
                         type="number"
                         value={m.akademik.sksKrs ?? ''}
@@ -579,7 +591,7 @@ export default function DaftarBimbinganPage() {
                     )}
                   </td>
                   <td style={{ padding: '8px 16px' }}>
-                    {quickEdit ? (
+                    {isiCepat ? (
                       <input
                         type="number"
                         step="0.01"
@@ -592,7 +604,7 @@ export default function DaftarBimbinganPage() {
                     )}
                   </td>
                   <td style={{ padding: '8px 16px' }}>
-                    {quickEdit ? (
+                    {isiCepat ? (
                       <input
                         type="number"
                         step="0.01"
