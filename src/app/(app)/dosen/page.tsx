@@ -128,7 +128,8 @@ export default function DosenDashboardPage() {
           <Card>
             <span style={{ fontSize: 14, fontWeight: 700, color: colors.ink }}>Rekap otomatis pribadi</span>
             <span style={{ display: 'block', fontSize: 12, color: colors.faint, marginBottom: 16 }}>
-              Dihitung otomatis dari data yang sudah Anda isi — live
+              Dihitung otomatis dari data yang sudah Anda isi — live.
+              Rata-rata IP/IPK tidak menghitung mahasiswa semester 1 yang belum memulai perkuliahan.
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
               {rekap.ipkPerProdi.length > 0 ? (

@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
 import { fetchMahasiswaRecords } from '@/lib/firestore/data';
 import {
-  computeWadekAggregates, computeIpkPerDosen, computeDrilldownList, groupByProdi,
+  computeWadekAggregates, computeIpkPerDosen, computeDrilldownList, groupByProdi, VERSI_REKAP,
   type WadekAggregates, type DrilldownKey,
 } from '@/lib/compute';
 import { colors } from '@/lib/theme';
@@ -120,13 +120,13 @@ export default function WadekDashboardPage() {
       } else {
         const { fetchRekapCache } = await import('@/lib/firestore/data');
         const cached = await fetchRekapCache(periode.id);
-        // Cache yang ditulis sebelum IP semester & IPK dipisah hanya punya satu
-        // angka gabungan. Diperlakukan seperti belum pernah dihitung supaya
-        // dihitung ulang sendiri — tanpa ini kartu prodi tampil kosong sampai
-        // ada orang yang kebetulan menekan Segarkan.
-        const bentukLama =
-          !!cached && !cached.aggregates.prodiIpk?.every((x) => 'rataIpk' in x);
-        if (cached && !bentukLama) {
+        // Cache yang definisi angkanya sudah tidak berlaku lagi diperlakukan
+        // seperti belum pernah dihitung, sehingga dihitung ulang sendiri.
+        // Tanpa ini Wakil Dekan I terus melihat angka lama — dulu kartu prodi
+        // kosong karena bentuknya berubah, dan kini rata-rata yang masih
+        // memuat mahasiswa semester 1 — tanpa satu pun tanda bahwa itu usang.
+        const versiUsang = !!cached && (cached.aggregates.versiRekap ?? 0) < VERSI_REKAP;
+        if (cached && !versiUsang) {
           setAgg(cached.aggregates);
           setComputedAt(
             (cached.computedAt as any)?.toDate ? (cached.computedAt as any).toDate() : null
@@ -235,6 +235,10 @@ export default function WadekDashboardPage() {
           </div>
         ))}
       </div>
+      <span style={{ fontSize: 11.5, color: colors.faint, marginTop: -8 }}>
+        Rata-rata di atas tidak menghitung mahasiswa semester 1 — mereka baru akan memulai
+        perkuliahan sehingga belum punya nilai. Jumlah mahasiswa di rekap fakultas tetap memuat mereka.
+      </span>
 
       {/* rekap fakultas + skripsi */}
       <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1.3fr 1fr', gap: 16, alignItems: 'start' }}>

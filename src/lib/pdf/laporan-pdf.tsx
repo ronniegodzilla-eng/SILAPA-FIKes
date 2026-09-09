@@ -119,11 +119,16 @@ function cW(w: number) {
 }
 
 /** Rata-rata satu kolom nilai, "—" bila belum ada yang terisi. */
+/** Semester 1 tidak ikut dirata-ratakan — lihat ikutRataAkademik di lib/compute.ts. */
+function ikutRata(r: PdfLaporanRow): boolean {
+  return r.semesterKe !== 1;
+}
+
 function rataKolom(
   rows: PdfLaporanRow[],
   ambil: (r: PdfLaporanRow) => number | null | undefined
 ): string {
-  const terisi = rows.filter((r) => ambil(r) != null);
+  const terisi = rows.filter((r) => ikutRata(r) && ambil(r) != null);
   if (!terisi.length) return '—';
   return (terisi.reduce((sum, r) => sum + (ambil(r) as number), 0) / terisi.length).toFixed(2);
 }
@@ -132,7 +137,7 @@ function jumlahTerisi(
   rows: PdfLaporanRow[],
   ambil: (r: PdfLaporanRow) => number | null | undefined
 ): number {
-  return rows.filter((r) => ambil(r) != null).length;
+  return rows.filter((r) => ikutRata(r) && ambil(r) != null).length;
 }
 
 function ya(v: boolean) {
@@ -272,8 +277,9 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
           </View>
         </View>
         <Text style={{ fontFamily: 'Helvetica', fontSize: 7, color: '#5C6B60', marginTop: 3 }}>
-          Rata-rata dihitung hanya dari mahasiswa aktif yang kolomnya sudah terisi —
-          IP semester dari {jumlahTerisi(aktif, (r) => r.ipKhs)} mahasiswa, IPK dari{' '}
+          Rata-rata dihitung hanya dari mahasiswa aktif yang kolomnya sudah terisi, di luar
+          mahasiswa semester 1 yang belum memulai perkuliahan — IP semester dari{' '}
+          {jumlahTerisi(aktif, (r) => r.ipKhs)} mahasiswa, IPK dari{' '}
           {jumlahTerisi(aktif, (r) => r.ipk)} mahasiswa.
         </Text>
 

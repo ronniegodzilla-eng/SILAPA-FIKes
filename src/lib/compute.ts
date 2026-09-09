@@ -106,11 +106,28 @@ export interface ProdiIpk {
  * Rata-rata satu kolom akademik, "—" bila belum ada yang terisi.
  * Dipakai bersama oleh dashboard dosen, dashboard wadek, dan ekspor.
  */
+/**
+ * Mahasiswa semester 1 TIDAK ikut dihitung dalam rata-rata IP/IPK.
+ *
+ * Pada penomoran laporan, semester 1 berarti mahasiswa yang baru AKAN memulai
+ * kuliah — belum ada satu pun nilai yang sah untuk dirata-ratakan. Yang
+ * terlanjur terisi hampir seluruhnya berupa 0 pengisi tempat (pada periode
+ * 2025/2026 Genap: 284 dari 287 record ber-IP, dan 267 dari 272 ber-IPK), dan
+ * itu menyeret rata-rata fakultas turun jauh — IPK K3 terbaca 3,17 padahal
+ * tanpa mereka 3,95.
+ *
+ * Yang dikecualikan hanya PERHITUNGAN rata-ratanya. Barisnya tetap tampil di
+ * tabel, daftar bimbingan, dan ekspor seperti biasa.
+ */
+export function ikutRataAkademik(m: { semesterKe: number }): boolean {
+  return m.semesterKe !== 1;
+}
+
 function rataKolom(
   list: MahasiswaRecord[],
   ambil: (m: MahasiswaRecord) => number | null | undefined
 ): { rata: string; n: number } {
-  const terisi = list.filter((m) => ambil(m) != null);
+  const terisi = list.filter((m) => ikutRataAkademik(m) && ambil(m) != null);
   if (!terisi.length) return { rata: '—', n: 0 };
   const mean = terisi.reduce((sum, m) => sum + (ambil(m) as number), 0) / terisi.length;
   return { rata: mean.toFixed(2), n: terisi.length };
@@ -197,7 +214,20 @@ export function computeSemesterKe(
 // ─── W1: Faculty-wide aggregates (PRD §6) ────────────────────────────────
 // Every number is computed from laporan records — never entered manually.
 
+/**
+ * Dinaikkan setiap kali DEFINISI sebuah angka rekap berubah (bukan sekadar
+ * datanya). rekapCache yang versinya tidak cocok dihitung ulang sendiri —
+ * tanpa itu Wakil Dekan I terus melihat angka lama sampai ada yang kebetulan
+ * menekan Segarkan, dan tidak ada satu pun tanda bahwa angkanya usang.
+ *
+ * 2 — semester 1 dikeluarkan dari rata-rata IP/IPK (lihat ikutRataAkademik).
+ * 1 — rata-rata IP semester dan IPK dipisah jadi dua angka.
+ */
+export const VERSI_REKAP = 2;
+
 export interface WadekAggregates {
+  /** Lihat VERSI_REKAP. Tidak ada pada cache yang ditulis sebelum penomoran ini. */
+  versiRekap?: number;
   status: {
     aktif: number;
     cuti: number;
@@ -303,6 +333,7 @@ export function computeWadekAggregates(
   }));
 
   return {
+    versiRekap: VERSI_REKAP,
     status: {
       aktif: count((m) => m.status === 'aktif'),
       cuti: count((m) => m.status === 'cuti'),

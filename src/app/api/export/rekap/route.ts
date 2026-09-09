@@ -58,8 +58,15 @@ export async function GET(req: NextRequest) {
     // pembaginya sendiri: satu prodi bisa sudah punya IPK sementara IP semester
     // periode ini belum terisi. Digabung jadi satu angka, prodi seperti itu
     // terbaca ber-"IPK" 0,00 padahal IPK-nya baik.
+    // Semester 1 dikecualikan dari rata-rata — sama seperti di dashboard
+    // (lihat ikutRataAkademik di lib/compute.ts). Mereka baru akan memulai
+    // kuliah, jadi belum punya nilai yang sah; angka 0 yang terlanjur terisi
+    // menyeret rata-rata turun jauh. Kolom JUMLAH MAHASISWA per semester
+    // tetap menghitung mereka seperti biasa.
     function rata(records: any[], ambil: (l: any) => number | null | undefined) {
-      const terisi = records.filter((l) => l.status === 'aktif' && ambil(l) != null);
+      const terisi = records.filter(
+        (l) => l.status === 'aktif' && l.semesterKe !== 1 && ambil(l) != null
+      );
       return terisi.length
         ? Number((terisi.reduce((sum, l) => sum + (ambil(l) as number), 0) / terisi.length).toFixed(2))
         : '—';
@@ -224,6 +231,8 @@ export async function GET(req: NextRequest) {
       totalRow,
       [],
       ['Catatan: seluruh angka rekap dihitung otomatis dari record laporan (PRD §6) — tidak pernah diinput manual,'],
+      ['Rata-rata IP semester dan IPK tidak menghitung mahasiswa semester 1 — mereka baru akan memulai kuliah'],
+      ['sehingga belum punya nilai. Jumlah mahasiswa per semester tetap memuat mereka.'],
       ['sehingga baris TOTAL tidak dapat rusak seperti pada file rekap manual periode sebelumnya.'],
       ['Struktur kolom mengikuti format REKAPAN LAPORAN PA yang sudah dikenal (PRD §5.4, §10).'],
     ]);
