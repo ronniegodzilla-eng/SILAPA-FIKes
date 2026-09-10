@@ -143,7 +143,9 @@ export async function GET(req: NextRequest) {
           pkkmb: !!master.pkkmb,
           toefl: !!master.toefl,
           esq: !!master.esq,
-          semkes: Array.isArray(master.semkes) ? master.semkes.map((x: any) => ({ judul: x?.judul ?? '' })) : [],
+          semkes: Array.isArray(master.semkes)
+            ? master.semkes.map((x: any) => ({ judul: x?.judul ?? '', bukti: x?.bukti || undefined }))
+            : [],
 
           organisasi: organisasi || 'Tidak ada',
           beasiswa: l.nonAkademik?.beasiswa?.ada ? l.nonAkademik.beasiswa.jenis ?? 'Ya' : 'Tidak ada',

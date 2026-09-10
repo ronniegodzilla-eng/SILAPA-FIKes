@@ -32,6 +32,8 @@ export interface PdfLaporanRow {
   toefl: boolean;
   esq: boolean;
   semkesCount: number;
+  /** Rincian semkes: judul + tautan sertifikat. Kosong bila belum ada. */
+  semkes?: { judul: string; bukti?: string }[];
   permasalahan: string;
   rekomendasi: string;
   /** Dosen merekomendasikan mahasiswa non-aktif ini untuk DO (drop out). */
@@ -204,6 +206,9 @@ export function BlokTtd({
 
 export function LaporanPdf({ data }: { data: PdfLaporanData }) {
   const aktif = data.rows.filter((r) => r.status === 'aktif' || r.status === 'lulus');
+  // Bagian D memuat SELURUH mahasiswa yang punya semkes, apa pun statusnya —
+  // yang sudah non-aktif pun sertifikatnya tetap bukti mutu yang sah.
+  const denganSemkes = data.rows.filter((r) => (r.semkes?.length ?? 0) > 0);
   // Pengunduran diri yang masih menunggu validasi Wakil Dekan I ikut di bagian
   // C: mahasiswanya sudah tidak berkuliah, dan laporan yang dicetak harus
   // menunjukkan itu apa adanya — termasuk bahwa keputusannya belum turun.
@@ -358,6 +363,55 @@ export function LaporanPdf({ data }: { data: PdfLaporanData }) {
                 </Text>
                 <Text style={[s.td, cW(24)]}>{r.permasalahan || '—'}</Text>
                 <Text style={[s.td, cW(24)]}>{r.rekomendasi || '—'}</Text>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* D. Rincian semkes — judul kegiatan + tautan sertifikatnya.
+            Dipisah dari tabel non-akademik karena judul seminar bisa sangat
+            panjang (terpanjang di data: 533 karakter) sehingga tidak muat
+            sebagai kolom; di tabel itu "Smk" tetap memuat jumlahnya saja.
+            Hanya mahasiswa yang punya semkes yang didaftarkan di sini. */}
+        <Text style={s.section}>
+          D. RINCIAN SEMINAR KESEHATAN (SEMKES){'   '}
+          <Text style={{ fontFamily: 'Helvetica', fontSize: 7, color: '#5C6B60' }}>
+            (judul bergaris bawah hijau = ada sertifikat terlampir, klik untuk membuka)
+          </Text>
+        </Text>
+        <View style={s.table}>
+          <View style={s.tr}>
+            <Text style={[s.th, cW(4), s.center]}>No</Text>
+            <Text style={[s.th, cW(14)]}>NPM</Text>
+            <Text style={[s.th, cW(24)]}>Nama</Text>
+            <Text style={[s.th, cW(58)]}>Judul seminar yang diikuti</Text>
+          </View>
+          {denganSemkes.length === 0 ? (
+            <View style={s.tr}>
+              <Text style={[s.td, cW(100), s.center, { color: '#93A398' }]}>
+                Belum ada mahasiswa bimbingan yang mencatatkan seminar kesehatan pada periode ini.
+              </Text>
+            </View>
+          ) : (
+            // Sengaja TIDAK wrap={false}: satu mahasiswa bisa punya 8 seminar
+            // dengan judul panjang, dan barisnya bisa melebihi tinggi satu
+            // halaman. Dibiarkan terpotong antar-halaman agar tidak ada judul
+            // yang hilang.
+            denganSemkes.map((r, i) => (
+              <View style={s.tr} key={r.npm}>
+                <Text style={[s.td, cW(4), s.center]}>{i + 1}</Text>
+                <Text style={[s.td, cW(14)]}>{r.npm}</Text>
+                <Text style={[s.td, cW(24)]}>{r.nama}</Text>
+                <View style={[cW(58), { padding: 3 }]}>
+                  {(r.semkes ?? []).map((e, j) => (
+                    <View key={j} style={{ flexDirection: 'row', marginBottom: 1.5 }}>
+                      <Text style={{ width: 12 }}>{j + 1}.</Text>
+                      <CellText style={{ flex: 1 }} bukti={e.bukti}>
+                        {e.judul || '(judul belum diisi)'}
+                      </CellText>
+                    </View>
+                  ))}
+                </View>
               </View>
             ))
           )}

@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, Link, StyleSheet } from '@react-pdf/renderer';
 import { BlokTtd, type TandaTanganPdf } from './laporan-pdf';
 
 /**
@@ -28,7 +28,7 @@ export interface PdfMahasiswaData {
   pkkmb: boolean;
   toefl: boolean;
   esq: boolean;
-  semkes: { judul: string }[];
+  semkes: { judul: string; bukti?: string }[];
 
   organisasi: string;
   beasiswa: string;
@@ -82,11 +82,23 @@ const s = StyleSheet.create({
   footer: { position: 'absolute', bottom: 22, left: 46, right: 46, fontSize: 6.5, color: '#93A398', textAlign: 'center' },
 });
 
-function Baris({ label, nilai }: { label: string; nilai: string }) {
+function Baris({ label, nilai }: { label: string; nilai: React.ReactNode }) {
+  // Nilai boleh berupa elemen (mis. daftar semkes bertaut), bukan hanya teks.
+  if (typeof nilai === 'string' || nilai == null) {
+    return (
+      <View style={s.baris}>
+        <Text style={s.label}>{label}</Text>
+        <Text style={s.nilai}>: {nilai || '—'}</Text>
+      </View>
+    );
+  }
   return (
     <View style={s.baris}>
       <Text style={s.label}>{label}</Text>
-      <Text style={s.nilai}>: {nilai || '—'}</Text>
+      <View style={[s.nilai, { flexDirection: 'row' }] as any}>
+        <Text>: </Text>
+        <View style={{ flex: 1 }}>{nilai}</View>
+      </View>
     </View>
   );
 }
@@ -161,14 +173,31 @@ export function LaporanMahasiswaPdf({ data }: { data: PdfMahasiswaData }) {
         <Baris label="PKKMB" nilai={ya(data.pkkmb)} />
         <Baris label="TOEFL" nilai={ya(data.toefl)} />
         <Baris label="ESQ" nilai={ya(data.esq)} />
-        <Baris
-          label="Seminar kesehatan"
-          nilai={
-            data.semkes.length
-              ? `${data.semkes.length} kegiatan — ${data.semkes.map((x) => x.judul).filter(Boolean).join('; ') || 'judul belum dilengkapi'}`
-              : 'Belum ada'
-          }
-        />
+        {/* Judul didaftar satu per satu, bukan digabung dengan titik koma,
+            supaya tiap judul bisa jadi tautan ke sertifikatnya sendiri. */}
+        {data.semkes.length === 0 ? (
+          <Baris label="Seminar kesehatan" nilai="Belum ada" />
+        ) : (
+          <Baris
+            label={`Seminar kesehatan (${data.semkes.length})`}
+            nilai={
+              <View>
+                {data.semkes.map((x, i) => (
+                  <View key={i} style={{ flexDirection: 'row', marginBottom: 1.5 }}>
+                    <Text style={{ width: 12 }}>{i + 1}.</Text>
+                    {x.bukti ? (
+                      <Link src={x.bukti} style={{ flex: 1, color: '#0B6E3C', textDecoration: 'underline' }}>
+                        {x.judul || '(judul belum diisi)'}
+                      </Link>
+                    ) : (
+                      <Text style={{ flex: 1 }}>{x.judul || '(judul belum diisi)'}</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            }
+          />
+        )}
         <Baris label="Organisasi" nilai={data.organisasi} />
         <Baris label="Beasiswa" nilai={data.beasiswa} />
         <Baris label="Prestasi" nilai={data.prestasi} />

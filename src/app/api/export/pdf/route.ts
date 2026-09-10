@@ -108,6 +108,13 @@ export async function GET(req: NextRequest) {
           toefl: !!m.toefl,
           esq: !!m.esq,
           semkesCount: Array.isArray(m.semkes) ? m.semkes.length : (m.semkesCount ?? 0),
+          // Rincian judul + tautan sertifikat, untuk bagian D. Kolom "Smk" pada
+          // tabel non-akademik tetap memuat jumlahnya saja supaya tabel itu
+          // tidak melebar; judulnya bisa sangat panjang (ada yang 533 karakter).
+          semkes: (Array.isArray(m.semkes) ? m.semkes : []).map((e: any) => ({
+            judul: String(e?.judul ?? '').trim(),
+            bukti: e?.bukti || undefined,
+          })),
           permasalahan: l.permasalahan ?? '',
           rekomendasi: l.rekomendasi ?? '',
           rekomendasiDO: !!l.rekomendasiDO,
