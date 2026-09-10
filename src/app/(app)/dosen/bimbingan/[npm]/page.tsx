@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSetHeader } from '@/components/AppShell';
-import { konsultasiJenisLabel, computeSemesterKe } from '@/lib/compute';
+import { konsultasiJenisLabel, computeSemesterKe, keteranganIpKhs } from '@/lib/compute';
 import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
@@ -290,6 +290,9 @@ export default function FormLaporanPage() {
               <div>
                 <label style={labelStyle}>IP (KHS)</label>
                 <input type="number" step="0.01" min={0} max={4} value={rec.akademik.ipKhs ?? ''} onChange={(e) => set('akademik.ipKhs', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
+                <span style={{ display: 'block', fontSize: 11, color: colors.faint, marginTop: 4, lineHeight: 1.45 }}>
+                  {keteranganIpKhs(rec.semesterKe)}
+                </span>
               </div>
               <div>
                 <label style={labelStyle}>IPK</label>

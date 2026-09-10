@@ -211,6 +211,24 @@ export function computeSemesterKe(
   return (tahunPeriodeAwal - angkatan) * 2 + (semester === 'genap' ? 3 : 2);
 }
 
+/**
+ * Keterangan untuk kolom IP (KHS): semester mana yang nilainya diisi.
+ *
+ * Nomor semester pada laporan adalah semester yang AKAN dijalani (lihat
+ * computeSemesterKe), sedangkan KHS yang dilaporkan berasal dari semester yang
+ * BARU SELESAI — satu di bawahnya. Selisih satu langkah itu tidak terbaca dari
+ * form, dan berulang kali membuat pengisi ragu: IP semester yang mana.
+ *
+ * Nomornya disebut apa adanya (mis. "IP semester 8") alih-alih kalimat umum
+ * "semester sebelumnya", supaya tidak perlu dihitung sendiri saat mengisi.
+ */
+export function keteranganIpKhs(semesterKe: number): string {
+  if (!Number.isFinite(semesterKe) || semesterKe <= 1) {
+    return 'Mahasiswa baru — belum ada semester yang selesai, jadi IP belum bisa diisi.';
+  }
+  return `Diisi IP semester ${semesterKe - 1} — semester yang baru selesai, bukan semester ${semesterKe} yang tertulis di atas.`;
+}
+
 // ─── W1: Faculty-wide aggregates (PRD §6) ────────────────────────────────
 // Every number is computed from laporan records — never entered manually.
 

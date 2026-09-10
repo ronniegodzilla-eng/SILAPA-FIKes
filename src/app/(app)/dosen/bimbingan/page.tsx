@@ -507,6 +507,17 @@ export default function DaftarBimbinganPage() {
         <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.green }}>{importToast}</span>
       )}
 
+      {isiCepat && (
+        // Nomor pada kolom Smt adalah semester yang AKAN dijalani, sedangkan
+        // IP yang dilaporkan berasal dari semester yang baru selesai. Di form
+        // per-mahasiswa selisih itu disebut dengan angkanya; di sini barisnya
+        // banyak dengan semester berbeda-beda, jadi aturannya yang disebut.
+        <span style={{ fontSize: 11.5, color: colors.faint, lineHeight: 1.5 }}>
+          Kolom IP diisi dengan IP semester yang baru selesai — satu tingkat di bawah angka pada
+          kolom Smt. Kolom SKS mengikuti KRS semester yang tertulis di kolom Smt.
+        </span>
+      )}
+
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
