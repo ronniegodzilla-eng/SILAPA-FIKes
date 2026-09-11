@@ -60,17 +60,52 @@ export function computeBadges(rec: MahasiswaRecord | null): Badge[] {
   return list;
 }
 
-/** True when the student meets any early-warning condition (dashboard "perhatian"). */
-export function needsAttention(m: MahasiswaRecord): boolean {
+/**
+ * Alasan mengapa seorang mahasiswa masuk hitungan "perlu perhatian".
+ *
+ * Satu-satunya definisi kriteria itu: needsAttention hanya memeriksa apakah
+ * daftar ini kosong, dan panel rinciannya menampilkan isinya. Dengan begitu
+ * angka pada dashboard dan daftar nama yang muncul saat diklik tidak mungkin
+ * berbeda — dulu keduanya akan gampang berselisih karena kriterianya ditulis
+ * dua kali.
+ *
+ * Catatan: computeBadges di atas memakai kriteria yang MIRIP tapi punya satu
+ * tambahan ("Semkes < 8 menjelang skripsi") dan dipakai di halaman riwayat
+ * per-mahasiswa. Sengaja tidak disatukan: menambahkan syarat semkes ke sini
+ * akan mengubah angka "perlu perhatian" di dashboard, dan itu keputusan
+ * fakultas, bukan perapian kode.
+ */
+export function alasanPerhatian(m: MahasiswaRecord): string[] {
+  const out: string[] = [];
   const h = m.ipHistory;
-  const turun =
+  if (
     h.length >= 3 &&
     h[h.length - 1].ip < h[h.length - 2].ip &&
-    h[h.length - 2].ip < h[h.length - 3].ip;
-  const rendah = m.akademik.ipKhs != null && m.akademik.ipKhs < 2.75;
-  const belumToefl = !m.toefl && m.semesterKe >= 6;
-  const konsul0 = m.status === 'aktif' && m.akademik.konsultasi.length === 0;
-  return turun || rendah || belumToefl || konsul0;
+    h[h.length - 2].ip < h[h.length - 3].ip
+  ) {
+    out.push('IP turun 2 semester berturut-turut');
+  }
+  if (m.akademik.ipKhs != null && m.akademik.ipKhs < 2.75) {
+    // Nilai 0 hampir selalu berarti IP-nya belum diisi, bukan prestasi nol —
+    // dibedakan supaya dosen tidak mengira ada 45 mahasiswa bermasalah berat.
+    out.push(
+      m.akademik.ipKhs === 0
+        ? 'IP tercatat 0 — kemungkinan besar belum diisi, bukan nilai sebenarnya'
+        : `IP ${m.akademik.ipKhs.toFixed(2)} di bawah 2,75`
+    );
+  }
+  if (!m.toefl && m.semesterKe >= 6) {
+    out.push(`Belum TOEFL padahal sudah semester ${m.semesterKe}`);
+  }
+  if (m.status === 'aktif' && m.akademik.konsultasi.length === 0) {
+    out.push('Belum ada catatan konsultasi pada periode ini');
+  }
+  return out;
+}
+
+/** True when the student meets any early-warning condition (dashboard "perhatian"). */
+export function needsAttention(m: MahasiswaRecord): boolean {
+  return alasanPerhatian(m).length > 0;
 }
 
 export interface DosenStats {

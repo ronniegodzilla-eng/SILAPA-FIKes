@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { MahasiswaRecord } from '@/lib/types';
 import { useData } from '@/lib/data-context';
 import { RiwayatTervalidasi } from '@/components/RiwayatTervalidasi';
 import { useAuth } from '@/lib/auth-context';
 import { useViewportWidth } from '@/lib/use-viewport';
-import { computeDosenStats, computeDosenRekap } from '@/lib/compute';
+import { computeDosenStats, computeDosenRekap, alasanPerhatian } from '@/lib/compute';
 import { downloadWithAuth, apiFetch } from '@/lib/download';
 import { colors } from '@/lib/theme';
 import { Card, Icon } from '@/components/ui';
@@ -48,6 +50,7 @@ export default function DosenDashboardPage() {
   const [toast, setToast] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState('');
+  const [panelPerhatian, setPanelPerhatian] = useState(false);
 
   // Pengunduran diri yang sudah disahkan Wakil Dekan I mengeluarkan mahasiswa
   // dari bimbingan aktif — sama seperti di Daftar Bimbingan dan di hitungan
@@ -159,7 +162,13 @@ export default function DosenDashboardPage() {
               <RekapTile label="Penerima beasiswa" value={rekap.beasiswa} />
               <RekapTile label="Meraih prestasi" value={rekap.prestasi} />
               <RekapTile label="Cuti / non-aktif" value={rekap.cutiNonaktif} />
-              <RekapTile label="Mahasiswa perlu perhatian" value={rekap.perhatian} valueColor={colors.danger} />
+              <RekapTile
+                label="Mahasiswa perlu perhatian"
+                value={rekap.perhatian}
+                valueColor={colors.danger}
+                onClick={rekap.perhatian > 0 ? () => setPanelPerhatian(true) : undefined}
+                hint={rekap.perhatian > 0 ? 'Klik untuk lihat nama & alasannya' : undefined}
+              />
             </div>
           </Card>
         </div>
@@ -209,9 +218,100 @@ export default function DosenDashboardPage() {
       <RiwayatTervalidasi dosenUid={appUser?.uid} />
 
       <FeatureTour steps={DOSEN_TOUR_STEPS} storageKey={`silapa_tour_dosen_${appUser?.uid ?? ''}`} />
+
+      {panelPerhatian && (
+        <PanelPerhatian daftar={bimbinganAktif} onClose={() => setPanelPerhatian(false)} />
+      )}
     </div>
   );
 }
+
+/**
+ * Rincian di balik angka "Mahasiswa perlu perhatian".
+ *
+ * Angkanya sendiri tidak menjelaskan apa-apa, dan dosen berulang kali bertanya
+ * apa maksudnya. Panel ini menyebut nama mahasiswanya beserta alasan yang
+ * membuatnya masuk hitungan, memakai daftar alasan yang SAMA dengan yang
+ * dipakai menghitung angkanya (alasanPerhatian), jadi keduanya tidak mungkin
+ * berselisih.
+ */
+function PanelPerhatian({ daftar, onClose }: { daftar: MahasiswaRecord[]; onClose: () => void }) {
+  const router = useRouter();
+  const baris = daftar
+    .map((m) => ({ rec: m, alasan: alasanPerhatian(m) }))
+    .filter((x) => x.alasan.length > 0)
+    // Yang alasannya paling banyak ditaruh di atas — itu yang paling perlu dilihat dulu.
+    .sort((a, b) => b.alasan.length - a.alasan.length || a.rec.nama.localeCompare(b.rec.nama));
+
+  const per: Record<string, number> = {};
+  baris.forEach((x) => x.alasan.forEach((a) => {
+    const kunci = a.startsWith('IP tercatat 0') ? 'IP tercatat 0 (kemungkinan belum diisi)'
+      : a.startsWith('IP ') ? 'IP di bawah 2,75'
+      : a.startsWith('Belum TOEFL') ? 'Belum TOEFL (semester ≥ 6)'
+      : a;
+    per[kunci] = (per[kunci] ?? 0) + 1;
+  }));
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,20,12,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+      <div style={{ background: colors.surface, borderRadius: 16, padding: '24px 26px', width: 720, maxWidth: '94vw', maxHeight: '84vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: colors.ink }}>
+            Mahasiswa perlu perhatian — {baris.length} mahasiswa
+          </span>
+          <span onClick={onClose} style={{ cursor: 'pointer', color: colors.muted, fontSize: 20, lineHeight: 1 }}>&times;</span>
+        </div>
+        <span style={{ fontSize: 12, color: colors.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          Daftar ini bukan penilaian — hanya penanda otomatis agar tidak ada yang terlewat.
+          Seorang mahasiswa bisa masuk karena lebih dari satu hal sekaligus.
+        </span>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          {Object.entries(per).sort((a, b) => b[1] - a[1]).map(([label, n]) => (
+            <span key={label} style={{ fontSize: 11.5, fontWeight: 700, color: colors.ink, background: colors.subtle, border: `1px solid ${colors.border}`, borderRadius: 999, padding: '5px 11px' }}>
+              {label}: {n}
+            </span>
+          ))}
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: colors.subtle }}>
+                <th style={{ ...THP, width: 120 }}>NPM</th>
+                <th style={THP}>Nama</th>
+                <th style={THP}>Alasan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {baris.map(({ rec, alasan }) => (
+                <tr
+                  key={rec.npm}
+                  onClick={() => router.push(`/dosen/bimbingan/${rec.npm}`)}
+                  title="Klik untuk membuka form laporan mahasiswa ini"
+                  style={{ borderTop: `1px solid ${colors.rowBorder}`, cursor: 'pointer' }}
+                >
+                  <td style={{ padding: '9px 10px', fontSize: 12.5, color: colors.muted, fontVariantNumeric: 'tabular-nums' }}>{rec.npm}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 13, fontWeight: 600, color: colors.ink }}>{rec.nama}</td>
+                  <td style={{ padding: '9px 10px' }}>
+                    {alasan.map((a, i) => (
+                      <div key={i} style={{ fontSize: 12, color: colors.ink, lineHeight: 1.45 }}>• {a}</div>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const THP: React.CSSProperties = {
+  textAlign: 'left', padding: '9px 10px', fontSize: 11.5, fontWeight: 700,
+  color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.3,
+};
 
 /**
  * Link "Isi Data Mandiri" (§ token per dosen): satu link mewakili SELURUH
@@ -338,11 +438,25 @@ function KpiCard({ label, value, hint, color }: { label: string; value: number; 
   );
 }
 
-function RekapTile({ label, value, valueColor = colors.ink }: { label: string; value: React.ReactNode; valueColor?: string }) {
+function RekapTile({
+  label, value, valueColor = colors.ink, onClick, hint,
+}: {
+  label: string; value: React.ReactNode; valueColor?: string;
+  onClick?: () => void; hint?: string;
+}) {
   return (
-    <div style={{ background: colors.subtle, borderRadius: 10, padding: 14 }}>
+    <div
+      onClick={onClick}
+      title={hint}
+      style={{
+        background: colors.subtle, borderRadius: 10, padding: 14,
+        cursor: onClick ? 'pointer' : undefined,
+        border: onClick ? `1px solid ${colors.border}` : '1px solid transparent',
+      }}
+    >
       <span style={{ fontSize: 11.5, color: colors.muted, fontWeight: 600 }}>{label}</span>
       <div style={{ fontSize: 20, fontWeight: 800, color: valueColor, marginTop: 4 }}>{value}</div>
+      {hint && <span style={{ fontSize: 10.5, color: colors.green, fontWeight: 700 }}>{hint}</span>}
     </div>
   );
 }
