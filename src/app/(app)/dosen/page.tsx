@@ -248,6 +248,7 @@ function PanelPerhatian({ daftar, onClose }: { daftar: MahasiswaRecord[]; onClos
     const kunci = a.startsWith('IP tercatat 0') ? 'IP tercatat 0 (kemungkinan belum diisi)'
       : a.startsWith('IP ') ? 'IP di bawah 2,75'
       : a.startsWith('Belum TOEFL') ? 'Belum TOEFL (semester ≥ 6)'
+      : a.startsWith('Baru ') ? 'Semkes belum 8 (semester ≥ 7)'
       : a;
     per[kunci] = (per[kunci] ?? 0) + 1;
   }));

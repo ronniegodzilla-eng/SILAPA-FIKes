@@ -33,31 +33,16 @@ export interface Badge {
   label: string;
 }
 
-/** Early-warning badges (PRD §5.2 D4) — ported from prototype computeBadges. */
+/**
+ * Early-warning badges (PRD §5.2 D4) di halaman riwayat per-mahasiswa.
+ *
+ * Sekadar pembungkus alasanPerhatian: kriterianya persis sama, dan dulu
+ * ditulis terpisah sehingga sempat berselisih — syarat semkes ada di sini
+ * tapi tidak ikut menghitung angka "perlu perhatian" di dashboard.
+ */
 export function computeBadges(rec: MahasiswaRecord | null): Badge[] {
-  const list: Badge[] = [];
-  if (!rec) return list;
-  const h = rec.ipHistory;
-  if (
-    h.length >= 3 &&
-    h[h.length - 1].ip < h[h.length - 2].ip &&
-    h[h.length - 2].ip < h[h.length - 3].ip
-  ) {
-    list.push({ label: 'IP turun 2 semester berturut-turut' });
-  }
-  if (rec.akademik.ipKhs != null && rec.akademik.ipKhs < 2.75) {
-    list.push({ label: 'IP di bawah 2.75' });
-  }
-  if (!rec.toefl && rec.semesterKe >= 6) {
-    list.push({ label: 'Belum TOEFL padahal semester ≥ 6' });
-  }
-  if (rec.semkes.length < SEMKES_MAX && rec.semesterKe >= 7) {
-    list.push({ label: 'Semkes < 8 menjelang skripsi' });
-  }
-  if (rec.status === 'aktif' && rec.akademik.konsultasi.length === 0) {
-    list.push({ label: 'Konsultasi 0 semester ini' });
-  }
-  return list;
+  if (!rec) return [];
+  return alasanPerhatian(rec).map((label) => ({ label }));
 }
 
 /**
@@ -69,11 +54,8 @@ export function computeBadges(rec: MahasiswaRecord | null): Badge[] {
  * berbeda — dulu keduanya akan gampang berselisih karena kriterianya ditulis
  * dua kali.
  *
- * Catatan: computeBadges di atas memakai kriteria yang MIRIP tapi punya satu
- * tambahan ("Semkes < 8 menjelang skripsi") dan dipakai di halaman riwayat
- * per-mahasiswa. Sengaja tidak disatukan: menambahkan syarat semkes ke sini
- * akan mengubah angka "perlu perhatian" di dashboard, dan itu keputusan
- * fakultas, bukan perapian kode.
+ * computeBadges di halaman riwayat per-mahasiswa membaca daftar yang sama,
+ * sehingga penanda di kedua tempat selalu berarti hal yang persis sama.
  */
 export function alasanPerhatian(m: MahasiswaRecord): string[] {
   const out: string[] = [];
@@ -96,6 +78,9 @@ export function alasanPerhatian(m: MahasiswaRecord): string[] {
   }
   if (!m.toefl && m.semesterKe >= 6) {
     out.push(`Belum TOEFL padahal sudah semester ${m.semesterKe}`);
+  }
+  if (m.semkes.length < SEMKES_MAX && m.semesterKe >= 7) {
+    out.push(`Baru ${m.semkes.length} dari ${SEMKES_MAX} semkes padahal sudah semester ${m.semesterKe} (menjelang skripsi)`);
   }
   if (m.status === 'aktif' && m.akademik.konsultasi.length === 0) {
     out.push('Belum ada catatan konsultasi pada periode ini');
