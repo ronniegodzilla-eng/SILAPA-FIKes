@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSetHeader } from '@/components/AppShell';
-import { konsultasiJenisLabel, computeSemesterKe, keteranganIpKhs } from '@/lib/compute';
+import { konsultasiJenisLabel, computeSemesterKe, keteranganIpKhs, keteranganSksKrs } from '@/lib/compute';
 import { colors, kelengkapanPill, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, Card, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
@@ -286,6 +286,9 @@ export default function FormLaporanPage() {
               <div>
                 <label style={labelStyle}>SKS (KRS)</label>
                 <input type="number" value={rec.akademik.sksKrs ?? ''} onChange={(e) => set('akademik.sksKrs', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
+                <span style={{ display: 'block', fontSize: 11, color: colors.faint, marginTop: 4, lineHeight: 1.45 }}>
+                  {keteranganSksKrs(rec.semesterKe)}
+                </span>
               </div>
               <div>
                 <label style={labelStyle}>IP (KHS)</label>

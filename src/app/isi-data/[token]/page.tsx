@@ -7,7 +7,7 @@ import { colors } from '@/lib/theme';
 import { Card, Icon, inputStyle, labelStyle } from '@/components/ui';
 import { BuktiUploadField } from '@/components/BuktiUpload';
 import { uploadBuktiFilePublic } from '@/lib/upload-bukti-public';
-import { konsultasiJenisLabel, keteranganIpKhs } from '@/lib/compute';
+import { konsultasiJenisLabel, keteranganIpKhs, keteranganSksKrs } from '@/lib/compute';
 import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, UKM_JENIS_PRESET, type KonsultasiEntry, type KonsultasiJenis, type SemkesEntry } from '@/lib/types';
 import { SemkesSection } from '@/components/SemkesSection';
 
@@ -483,6 +483,9 @@ export default function IsiDataMandiriPage() {
                   <div>
                     <label style={labelStyle}>SKS (KRS)</label>
                     <input type="number" value={form.akademik.sksKrs ?? ''} onChange={(e) => setAk('sksKrs', e.target.value === '' ? null : Number(e.target.value))} style={inputStyle} />
+                    <span style={{ display: 'block', fontSize: 11, color: colors.faint, marginTop: 4, lineHeight: 1.45 }}>
+                      {keteranganSksKrs(semesterKe)}
+                    </span>
                     <BuktiUploadField
                       npm={selectedNpm} label="KRS" value={form.akademik.krsBukti}
                       onChange={(url) => setAk('krsBukti', url)}

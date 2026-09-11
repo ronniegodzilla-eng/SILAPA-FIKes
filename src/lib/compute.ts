@@ -212,6 +212,25 @@ export function computeSemesterKe(
 }
 
 /**
+ * Keterangan untuk kolom SKS (KRS): semester mana yang SKS-nya diisi.
+ *
+ * Pasangan dari keteranganIpKhs, dan sengaja disandingkan: dua kolom yang
+ * bersebelahan ini merujuk semester BERBEDA — SKS mengikuti semester yang
+ * tertulis, IP mengikuti satu di bawahnya. Menjelaskan salah satunya saja
+ * justru memancing pertanyaan tentang yang lain.
+ *
+ * Tidak ada kasus khusus semester 1: mahasiswa baru memang sudah mengambil
+ * KRS untuk semester 1, jadi kolom ini bisa diisi sejak awal — berbeda dari
+ * IP yang belum ada nilainya.
+ */
+export function keteranganSksKrs(semesterKe: number): string {
+  if (!Number.isFinite(semesterKe) || semesterKe < 1) {
+    return 'Diisi jumlah SKS yang diambil pada semester yang tertulis di atas.';
+  }
+  return `Diisi jumlah SKS yang diambil pada semester ${semesterKe} — semester yang tertulis di atas.`;
+}
+
+/**
  * Keterangan untuk kolom IP (KHS): semester mana yang nilainya diisi.
  *
  * Nomor semester pada laporan adalah semester yang AKAN dijalani (lihat
