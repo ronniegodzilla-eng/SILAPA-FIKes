@@ -191,19 +191,132 @@ export interface DosenRekap {
 }
 
 /** Personal live rekap for a dosen (PRD §6, §5.2 D1). */
+/**
+ * Rincian di balik tiap angka pada "Rekap otomatis pribadi".
+ *
+ * Angka-angka itu dipakai dosen PA saat rapat evaluasi, dan angka telanjang
+ * tidak bisa dipertanggungjawabkan di depan forum — yang ditanya selalu
+ * "siapa saja?". Fungsi ini mengembalikan barisnya, dan computeDosenRekap
+ * menghitung angkanya DARI sini, sehingga daftar yang muncul saat kartunya
+ * diklik selalu sepanjang angka yang tertera.
+ */
+export type JenisRincian =
+  | 'organisasi'
+  | 'beasiswa'
+  | 'prestasi'
+  | 'cutiNonaktif'
+  | 'perhatian'
+  | 'ip'
+  | 'ipk';
+
+export interface BarisRincian {
+  rec: MahasiswaRecord;
+  keterangan: string[];
+}
+
+export function rincianRekap(
+  list: MahasiswaRecord[],
+  jenis: JenisRincian,
+  prodi?: string
+): BarisRincian[] {
+  const aktif = list.filter((m) => m.status === 'aktif');
+  const urut = (a: BarisRincian, b: BarisRincian) => a.rec.nama.localeCompare(b.rec.nama, 'id');
+
+  if (jenis === 'organisasi') {
+    return list
+      .filter((m) => m.nonAkademik.ukm || m.nonAkademik.hima || m.nonAkademik.bem)
+      .map((m) => {
+        const ket: string[] = [];
+        if (m.nonAkademik.ukm) ket.push(`UKM${m.nonAkademik.ukmJenis ? ` — ${m.nonAkademik.ukmJenis}` : ''}`);
+        if (m.nonAkademik.hima) ket.push('HIMA');
+        if (m.nonAkademik.bem) ket.push('BEM');
+        return { rec: m, keterangan: ket };
+      })
+      .sort(urut);
+  }
+
+  if (jenis === 'beasiswa') {
+    return list
+      .filter((m) => m.nonAkademik.beasiswa.ada)
+      .map((m) => {
+        const b = m.nonAkademik.beasiswa;
+        const ket = [b.jenis ? `Jenis: ${b.jenis}` : 'Jenis belum dicatat'];
+        if (b.keterangan?.trim()) ket.push(b.keterangan.trim());
+        return { rec: m, keterangan: ket };
+      })
+      .sort(urut);
+  }
+
+  if (jenis === 'prestasi') {
+    return list
+      .filter((m) => m.nonAkademik.prestasi.ada)
+      .map((m) => {
+        const p = m.nonAkademik.prestasi;
+        return {
+          rec: m,
+          keterangan: [
+            p.jenis ? `Jenis: ${p.jenis}` : 'Jenis belum dicatat',
+            p.tingkat ? `Tingkat: ${p.tingkat}` : 'Tingkat belum dicatat',
+          ],
+        };
+      })
+      .sort(urut);
+  }
+
+  if (jenis === 'cutiNonaktif') {
+    const label: Record<string, string> = {
+      cuti: 'Cuti',
+      non_aktif: 'Non-aktif',
+      mengundurkan_diri: 'Mengundurkan diri (menunggu/terproses)',
+    };
+    return list
+      .filter((m) => m.status === 'cuti' || m.status === 'non_aktif' || m.status === 'mengundurkan_diri')
+      .map((m) => {
+        const ket = [label[m.status] ?? m.status];
+        if (m.rekomendasiDO) ket.push('Direkomendasikan drop out');
+        if (m.permasalahan?.trim()) ket.push(`Permasalahan: ${m.permasalahan.trim()}`);
+        return { rec: m, keterangan: ket };
+      })
+      .sort(urut);
+  }
+
+  if (jenis === 'perhatian') {
+    return list
+      .map((m) => ({ rec: m, keterangan: alasanPerhatian(m) }))
+      .filter((x) => x.keterangan.length > 0)
+      // Yang alasannya paling banyak ditaruh di atas — itu yang paling perlu dilihat dulu.
+      .sort((a, b) => b.keterangan.length - a.keterangan.length || urut(a, b));
+  }
+
+  // ip / ipk — hanya mahasiswa yang BENAR-BENAR ikut dirata-ratakan, sehingga
+  // jumlah barisnya sama dengan n yang tertera pada kartunya.
+  const ambil = (m: MahasiswaRecord) => (jenis === 'ip' ? m.akademik.ipKhs : m.akademik.ipk);
+  return aktif
+    .filter((m) => (prodi ? m.prodi === prodi : true) && ikutRataAkademik(m) && ambil(m) != null)
+    .map((m) => ({
+      rec: m,
+      keterangan: [
+        jenis === 'ip'
+          ? `IP semester ${m.semesterKe - 1}: ${(ambil(m) as number).toFixed(2)}`
+          : `IPK: ${(ambil(m) as number).toFixed(2)}`,
+      ],
+    }))
+    .sort((a, b) => (ambil(a.rec) as number) - (ambil(b.rec) as number) || urut(a, b));
+}
+
 export function computeDosenRekap(list: MahasiswaRecord[]): DosenRekap {
   const aktif = list.filter((m) => m.status === 'aktif');
   return {
     ipRataStr: rataKolom(aktif, (m) => m.akademik.ipKhs).rata,
     ipkRataStr: rataKolom(aktif, (m) => m.akademik.ipk).rata,
     ipkPerProdi: computeIpkPerProdi(list),
-    organisasi: list.filter((m) => m.nonAkademik.ukm || m.nonAkademik.hima || m.nonAkademik.bem).length,
-    beasiswa: list.filter((m) => m.nonAkademik.beasiswa.ada).length,
-    prestasi: list.filter((m) => m.nonAkademik.prestasi.ada).length,
-    cutiNonaktif: list.filter(
-      (m) => m.status === 'cuti' || m.status === 'non_aktif' || m.status === 'mengundurkan_diri'
-    ).length,
-    perhatian: list.filter(needsAttention).length,
+    // Dihitung dari rincianRekap, bukan predikat terpisah: angka pada kartu dan
+    // panjang daftar yang muncul saat diklik selalu sama.
+    organisasi: rincianRekap(list, 'organisasi').length,
+    beasiswa: rincianRekap(list, 'beasiswa').length,
+    prestasi: rincianRekap(list, 'prestasi').length,
+    cutiNonaktif: rincianRekap(list, 'cutiNonaktif').length,
+    perhatian: rincianRekap(list, 'perhatian').length,
   };
 }
 
