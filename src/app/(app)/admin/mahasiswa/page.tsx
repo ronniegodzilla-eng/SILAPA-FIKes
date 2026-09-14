@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useData } from '@/lib/data-context';
+import { downloadWithAuth } from '@/lib/download';
 import { colors, statusPill, STATUS_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination } from '@/components/table-tools';
@@ -27,6 +28,26 @@ interface Draft {
 
 export default function MasterMahasiswaPage() {
   const { recordList, records, dosenPaOptions, periode, addMahasiswa, editMahasiswaMaster, toggleNonaktif, ajukanPengunduran } = useData();
+  const [eksporBusy, setEksporBusy] = useState(false);
+  const [eksporErr, setEksporErr] = useState('');
+
+  // Berkasnya disusun di server: seluruh koleksi mahasiswa + laporan periode
+  // ini, jauh melebihi apa yang dimuat halaman ini (yang sudah dipaginasi).
+  async function ekspor() {
+    if (eksporBusy || !periode) return;
+    setEksporBusy(true);
+    setEksporErr('');
+    try {
+      await downloadWithAuth(
+        `/api/export/mahasiswa?periodeId=${encodeURIComponent(periode.id)}`,
+        `Data Master Mahasiswa FIKes — ${periode.id}.xlsx`
+      );
+    } catch (e: any) {
+      setEksporErr(e?.message ?? 'Gagal mengunduh berkas ekspor.');
+    } finally {
+      setEksporBusy(false);
+    }
+  }
   const [undurNpm, setUndurNpm] = useState<string | null>(null);
   // dosenPaOptions, bukan dosenRoster: mahasiswa yang diplot ke dosen yang
   // baru didaftarkan akan tampil "belum diplot" bila hanya roster yang dipakai.
@@ -110,11 +131,26 @@ export default function MasterMahasiswaPage() {
             <option value="S2KM">S2KM</option>
           </select>
         </div>
-        <button onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          <Icon path="M12 5v14 M5 12h14" size={15} width={2} />
-          Tambah Mahasiswa
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            onClick={ekspor}
+            disabled={eksporBusy}
+            title="Unduh seluruh data master mahasiswa beserta isian periode berjalan"
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.ink, fontSize: 13, fontWeight: 700, cursor: eksporBusy ? 'wait' : 'pointer' }}
+          >
+            <Icon path="M12 3v12 M7 10l5 5 5-5 M4 21h16" size={15} width={2} />
+            {eksporBusy ? 'Menyiapkan…' : 'Ekspor Excel'}
+          </button>
+          <button onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <Icon path="M12 5v14 M5 12h14" size={15} width={2} />
+            Tambah Mahasiswa
+          </button>
+        </div>
       </div>
+
+      {eksporErr && (
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: colors.danger }}>{eksporErr}</span>
+      )}
 
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 14, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
