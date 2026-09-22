@@ -65,6 +65,8 @@ export async function GET(req: NextRequest) {
 
     const s1 = judulSheet('RINGKASAN PENGISIAN', ['Keterangan', 'Nilai'], [
       ['Instrumen', a.judul],
+      ['Topik yang dinilai', a.topik ?? ''],
+      ['Tingkat kerahasiaan', (a.kerahasiaan ?? 'ketat') === 'ketat' ? 'Ketat (menilai perorangan)' : 'Biasa (menilai unit/layanan)'],
       ['Sifat', a.wajib ? 'Wajib' : 'Sukarela'],
       ['Status', a.status],
       ['Sasaran mahasiswa (target)', populasi.length],

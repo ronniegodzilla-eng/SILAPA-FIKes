@@ -368,11 +368,41 @@ export interface RiwayatLaporanRow {
 export type JenisPertanyaan = 'skala' | 'pilihan' | 'teks';
 
 /**
- * Apa yang dinilai instrumen ini. Menentukan seberapa ketat aksesnya: instrumen
- * yang menilai dosen PA tidak boleh dibaca dosen per jawaban, sementara
- * instrumen tentang layanan fakultas tidak perlu ditutup serapat itu.
+ * Seberapa ketat hasil instrumen ini dijaga. SENGAJA hanya dua nilai dan
+ * tertutup — ini keputusan keamanan, bukan keterangan.
+ *
+ * Dulu perannya dirangkap medan `sasaran` yang sekaligus jadi label ("menilai
+ * dosen PA"). Begitu label itu dibuat bebas agar bisa memuat perpustakaan,
+ * laboratorium, dan seterusnya, pemicu perlindungannya ikut rapuh: satu
+ * instrumen tentang dosen yang topiknya diketik sedikit berbeda akan kehilangan
+ * perlindungan tanpa tanda apa pun. Karena itu keduanya dipisah — `topik`
+ * bebas tumbuh, `kerahasiaan` tetap terkunci.
+ *
+ * 'ketat' — menilai perorangan yang punya akun di sistem ini (mis. dosen PA).
+ *           Yang dinilai tidak pernah membaca jawaban, dan agregatnya baru
+ *           terbuka baginya setelah pengisian ditutup.
+ * 'biasa' — menilai unit atau layanan. Hasilnya boleh dilihat lebih terbuka.
+ *
+ * Ambang minimal responden berlaku pada KEDUANYA: yang dilindunginya adalah
+ * penulis jawaban bebas, apa pun topiknya.
  */
-export type SasaranKuesioner = 'dosen_pa' | 'fakultas' | 'lainnya';
+export type KerahasiaanKuesioner = 'ketat' | 'biasa';
+
+/**
+ * Topik yang dinilai — bebas, sekadar keterangan. Daftar di bawah hanya usulan
+ * yang muncul di dropdown; tim evaluasi boleh mengetik topik lain tanpa
+ * menyentuh kode.
+ */
+export const TOPIK_KUESIONER_USULAN = [
+  'Dosen PA',
+  'Layanan fakultas',
+  'Perpustakaan',
+  'Laboratorium',
+  'Tenaga kependidikan',
+  'Kurikulum & pembelajaran',
+  'Sarana & prasarana',
+  'Kemahasiswaan',
+];
 
 export interface PertanyaanKuesioner {
   id: string;
@@ -392,7 +422,9 @@ export interface Kuesioner {
   id: string;
   judul: string;
   deskripsi: string;
-  sasaran: SasaranKuesioner;
+  /** Keterangan bebas — lihat TOPIK_KUESIONER_USULAN. */
+  topik: string;
+  kerahasiaan: KerahasiaanKuesioner;
   pertanyaan: PertanyaanKuesioner[];
   /** 'siap' = boleh diaktifkan. Draft tidak muncul di daftar pengaktifan. */
   status: 'draft' | 'siap';
@@ -418,7 +450,8 @@ export interface AktivasiKuesioner {
   periodeId: string;
   judul: string;
   deskripsi: string;
-  sasaran: SasaranKuesioner;
+  topik: string;
+  kerahasiaan: KerahasiaanKuesioner;
   pertanyaan: PertanyaanKuesioner[];
   wajib: boolean;
   status: StatusAktivasi;

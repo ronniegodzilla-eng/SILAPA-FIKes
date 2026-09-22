@@ -48,10 +48,16 @@ export async function GET(req: NextRequest) {
   // kuesioner ditutup: selama masih terbuka, angka yang berjalan bisa dipakai
   // menekan mahasiswa yang belum mengisi.
   const sebagaiDosen = !caller.roles.includes('tim_evaluasi') && !caller.roles.includes('wadek1');
+  // `?? ` menampung dokumen yang sempat ditulis dengan medan `sasaran` lama.
+  // Bila ragu, jatuh ke 'ketat' — salah menutup lebih ringan akibatnya
+  // daripada salah membuka penilaian atas seseorang.
+  const kerahasiaan: string = a.kerahasiaan ?? (a.sasaran === 'fakultas' ? 'biasa' : 'ketat');
   if (sebagaiDosen) {
-    if (a.sasaran === 'dosen_pa' && a.status !== 'ditutup') {
+    if (kerahasiaan === 'ketat' && a.status !== 'ditutup') {
+      // Pesannya tidak menyebut topik tertentu: instrumen bertingkat ketat
+      // boleh tentang apa saja, asal menilai perorangan.
       return new Response(
-        'Hasil kuesioner yang menilai dosen PA baru dapat dilihat setelah pengisian ditutup.',
+        'Kuesioner ini bertingkat kerahasiaan ketat — hasilnya baru dapat dilihat setelah pengisian ditutup.',
         { status: 423 }
       );
     }
@@ -129,7 +135,7 @@ export async function GET(req: NextRequest) {
   });
 
   return Response.json({
-    aktivasi: { id: aktivasiId, judul: a.judul, sasaran: a.sasaran, status: a.status, wajib: !!a.wajib, periodeId: a.periodeId },
+    aktivasi: { id: aktivasiId, judul: a.judul, topik: a.topik ?? '', kerahasiaan, status: a.status, wajib: !!a.wajib, periodeId: a.periodeId },
     lingkup: sebagaiDosen ? 'bimbingan' : 'fakultas',
     minResponden: MIN_RESPONDEN,
     ringkas: {

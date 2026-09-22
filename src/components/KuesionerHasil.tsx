@@ -24,7 +24,7 @@ export interface HasilPertanyaan {
 }
 
 export interface RekapKuesioner {
-  aktivasi: { id: string; judul: string; sasaran: string; status: string; wajib: boolean };
+  aktivasi: { id: string; judul: string; topik: string; kerahasiaan: string; status: string; wajib: boolean };
   lingkup: 'fakultas' | 'bimbingan';
   minResponden: number;
   ringkas: { target: number; terisi: number; persen: number };

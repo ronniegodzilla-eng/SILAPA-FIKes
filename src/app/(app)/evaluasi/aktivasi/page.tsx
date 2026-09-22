@@ -145,6 +145,7 @@ export default function PengaktifanPage() {
           <thead>
             <tr style={{ background: colors.subtle }}>
               <th style={TH}>Instrumen</th>
+              <th style={TH}>Topik</th>
               <th style={{ ...TH, textAlign: 'right' }}>Pertanyaan</th>
               <th style={TH}>Sifat</th>
               <th style={TH}>Status</th>
@@ -153,13 +154,21 @@ export default function PengaktifanPage() {
           </thead>
           <tbody>
             {memuat ? (
-              <tr><td colSpan={5} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Memuat…</td></tr>
+              <tr><td colSpan={6} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Memuat…</td></tr>
             ) : aktivasi.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Belum ada kuesioner yang diaktifkan pada periode ini.</td></tr>
+              <tr><td colSpan={6} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Belum ada kuesioner yang diaktifkan pada periode ini.</td></tr>
             ) : (
               aktivasi.map((a) => (
                 <tr key={a.id} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
                   <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 600, color: colors.ink }}>{a.judul}</td>
+                  <td style={{ padding: '11px 16px', fontSize: 12.5, color: colors.muted }}>
+                    {a.topik}
+                    {a.kerahasiaan === 'ketat' && (
+                      <span title="Menilai perorangan — hasil tertutup bagi yang dinilai sampai pengisian ditutup" style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: colors.danger }}>
+                        KETAT
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '11px 16px', fontSize: 12.5, color: colors.muted, textAlign: 'right' }}>{a.pertanyaan.length}</td>
                   <td style={{ padding: '11px 16px', fontSize: 12.5, color: a.wajib ? colors.ink : colors.muted, fontWeight: a.wajib ? 700 : 400 }}>
                     {a.wajib ? 'Wajib' : 'Sukarela'}

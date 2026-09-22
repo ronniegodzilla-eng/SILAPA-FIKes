@@ -9,17 +9,17 @@ import {
   hapusKuesioner,
   simpanKuesioner,
 } from '@/lib/firestore/kuesioner';
+import { TOPIK_KUESIONER_USULAN } from '@/lib/types';
 import type {
   JenisPertanyaan,
+  KerahasiaanKuesioner,
   Kuesioner,
   PertanyaanKuesioner,
-  SasaranKuesioner,
 } from '@/lib/types';
 
-const SASARAN_LABEL: Record<SasaranKuesioner, string> = {
-  dosen_pa: 'Menilai dosen PA',
-  fakultas: 'Menilai layanan fakultas',
-  lainnya: 'Lainnya',
+const KERAHASIAAN_LABEL: Record<KerahasiaanKuesioner, string> = {
+  ketat: 'Ketat — menilai perorangan',
+  biasa: 'Biasa — menilai unit/layanan',
 };
 
 const JENIS_LABEL: Record<JenisPertanyaan, string> = {
@@ -36,7 +36,8 @@ function kuesionerKosong(uid: string, nama: string): Kuesioner {
     id: idBaru(),
     judul: '',
     deskripsi: '',
-    sasaran: 'dosen_pa',
+    topik: TOPIK_KUESIONER_USULAN[0],
+    kerahasiaan: 'ketat',
     pertanyaan: [],
     status: 'draft',
     dibuatOleh: uid,
@@ -51,6 +52,9 @@ export default function BankKuesionerPage() {
   const [galat, setGalat] = useState('');
   const [draf, setDraf] = useState<Kuesioner | null>(null);
   const [menyimpan, setMenyimpan] = useState(false);
+  // Topik boleh di luar daftar usulan — mode ketik dibuka lewat pilihan
+  // "Lainnya", pola yang sama dengan isian jenis UKM pada form laporan.
+  const [topikLain, setTopikLain] = useState(false);
 
   const muat = useCallback(async () => {
     setMemuat(true);
@@ -158,7 +162,7 @@ export default function BankKuesionerPage() {
       {!draf && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
-            onClick={() => setDraf(kuesionerKosong(appUser?.uid ?? '', appUser?.nama ?? ''))}
+            onClick={() => { setDraf(kuesionerKosong(appUser?.uid ?? '', appUser?.nama ?? '')); setTopikLain(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, border: 'none', background: colors.green, color: colors.white, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
             <Icon path="M12 5v14 M5 12h14" size={15} width={2} />
@@ -179,16 +183,48 @@ export default function BankKuesionerPage() {
               <input value={draf.judul} onChange={(e) => ubah({ judul: e.target.value })} style={inputStyle} placeholder="mis. Evaluasi Pembimbingan Akademik" />
             </div>
             <div>
-              <label style={labelStyle}>Yang dinilai</label>
-              <select value={draf.sasaran} onChange={(e) => ubah({ sasaran: e.target.value as SasaranKuesioner })} style={inputStyle}>
-                {(Object.keys(SASARAN_LABEL) as SasaranKuesioner[]).map((s) => (
-                  <option key={s} value={s}>{SASARAN_LABEL[s]}</option>
+              <label style={labelStyle}>Topik yang dinilai</label>
+              {topikLain ? (
+                <input
+                  value={draf.topik}
+                  onChange={(e) => ubah({ topik: e.target.value })}
+                  placeholder="Ketik topik, mis. Layanan klinik kampus"
+                  style={inputStyle}
+                  autoFocus
+                />
+              ) : (
+                <select
+                  value={draf.topik}
+                  onChange={(e) => {
+                    if (e.target.value === '__lain__') { setTopikLain(true); ubah({ topik: '' }); }
+                    else ubah({ topik: e.target.value });
+                  }}
+                  style={inputStyle}
+                >
+                  {TOPIK_KUESIONER_USULAN.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="__lain__">Lainnya (ketik sendiri)…</option>
+                </select>
+              )}
+              {topikLain && (
+                <span
+                  onClick={() => { setTopikLain(false); ubah({ topik: TOPIK_KUESIONER_USULAN[0] }); }}
+                  style={{ display: 'inline-block', fontSize: 11, color: colors.green, fontWeight: 700, marginTop: 4, cursor: 'pointer' }}
+                >
+                  ← pilih dari daftar
+                </span>
+              )}
+            </div>
+            <div>
+              <label style={labelStyle}>Tingkat kerahasiaan</label>
+              <select value={draf.kerahasiaan} onChange={(e) => ubah({ kerahasiaan: e.target.value as KerahasiaanKuesioner })} style={inputStyle}>
+                {(Object.keys(KERAHASIAAN_LABEL) as KerahasiaanKuesioner[]).map((k) => (
+                  <option key={k} value={k}>{KERAHASIAAN_LABEL[k]}</option>
                 ))}
               </select>
               <span style={{ display: 'block', fontSize: 11, color: colors.faint, marginTop: 4, lineHeight: 1.45 }}>
-                {draf.sasaran === 'dosen_pa'
-                  ? 'Jawaban tidak akan pernah bisa dibaca dosen PA; ia hanya melihat angka agregat bimbingannya setelah kuesioner ditutup.'
-                  : 'Hasilnya boleh dilihat lebih terbuka karena tidak menilai perorangan.'}
+                {draf.kerahasiaan === 'ketat'
+                  ? 'Untuk instrumen yang menilai orang per orang. Yang dinilai tidak akan pernah bisa membaca jawaban, dan angka agregat bimbingannya baru terbuka setelah pengisian ditutup.'
+                  : 'Untuk instrumen tentang unit atau layanan. Hasilnya boleh dilihat lebih awal dan lebih terbuka.'}
               </span>
             </div>
           </div>
@@ -315,7 +351,8 @@ export default function BankKuesionerPage() {
           <thead>
             <tr style={{ background: colors.subtle }}>
               <th style={TH}>Judul</th>
-              <th style={TH}>Yang dinilai</th>
+              <th style={TH}>Topik</th>
+              <th style={TH}>Kerahasiaan</th>
               <th style={{ ...TH, textAlign: 'right' }}>Pertanyaan</th>
               <th style={TH}>Status</th>
               <th style={TH}></th>
@@ -323,14 +360,19 @@ export default function BankKuesionerPage() {
           </thead>
           <tbody>
             {memuat ? (
-              <tr><td colSpan={5} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Memuat…</td></tr>
+              <tr><td colSpan={6} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Memuat…</td></tr>
             ) : daftar.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Bank kuesioner masih kosong.</td></tr>
+              <tr><td colSpan={6} style={{ padding: 18, fontSize: 12.5, color: colors.faint }}>Bank kuesioner masih kosong.</td></tr>
             ) : (
               daftar.map((k) => (
                 <tr key={k.id} style={{ borderTop: `1px solid ${colors.rowBorder}` }}>
                   <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 600, color: colors.ink }}>{k.judul || '(tanpa judul)'}</td>
-                  <td style={{ padding: '11px 16px', fontSize: 12.5, color: colors.muted }}>{SASARAN_LABEL[k.sasaran]}</td>
+                  <td style={{ padding: '11px 16px', fontSize: 12.5, color: colors.muted }}>{k.topik}</td>
+                  <td style={{ padding: '11px 16px' }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: '4px 11px', color: k.kerahasiaan === 'ketat' ? colors.danger : colors.muted, background: k.kerahasiaan === 'ketat' ? '#FBF1EF' : colors.subtle }}>
+                      {k.kerahasiaan === 'ketat' ? 'Ketat' : 'Biasa'}
+                    </span>
+                  </td>
                   <td style={{ padding: '11px 16px', fontSize: 12.5, color: colors.muted, textAlign: 'right' }}>{k.pertanyaan.length}</td>
                   <td style={{ padding: '11px 16px' }}>
                     <span style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: '4px 11px', color: k.status === 'siap' ? colors.green : colors.muted, background: k.status === 'siap' ? '#E5F3EA' : colors.subtle }}>
@@ -338,7 +380,7 @@ export default function BankKuesionerPage() {
                     </span>
                   </td>
                   <td style={{ padding: '11px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => { setDraf(k); setGalat(''); }} style={{ ...tombolKecil(false), padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>Sunting</button>{' '}
+                    <button onClick={() => { setDraf(k); setTopikLain(!TOPIK_KUESIONER_USULAN.includes(k.topik)); setGalat(''); }} style={{ ...tombolKecil(false), padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>Sunting</button>{' '}
                     <button onClick={() => hapus(k)} style={{ ...tombolKecil(false), padding: '6px 12px', fontSize: 12, fontWeight: 700, color: colors.danger }}>Hapus</button>
                   </td>
                 </tr>
