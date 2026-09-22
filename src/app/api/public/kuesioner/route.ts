@@ -65,6 +65,68 @@ async function aktivasiTerbuka(periodeId: string) {
     .sort((a, b) => String(a.judul).localeCompare(String(b.judul), 'id'));
 }
 
+
+/** Minimal karakter sebelum mencari, dan maksimal hasil yang dikembalikan. */
+const CARI_MIN = 3;
+const CARI_MAKS = 8;
+
+/**
+ * Daftar mahasiswa yang boleh mengisi pada periode ini, disimpan di memori.
+ *
+ * Pencarian ketik-langsung memanggil endpoint ini berkali-kali per mahasiswa.
+ * Tanpa singgahan, tiap ketukan berarti membaca ~2.000 dokumen mahasiswa —
+ * lambat di ponsel dan mahal di Firestore. Dengan singgahan, pembacaan itu
+ * terjadi sekali per beberapa menit per instance.
+ *
+ * Isinya bukan rahasia yang berumur panjang: nama dan NPM mahasiswa aktif.
+ * Umur singgahan dibuat pendek supaya mahasiswa yang baru ditambahkan tidak
+ * kelamaan tidak ditemukan.
+ */
+let singgahan: { periodeId: string; sampai: number; daftar: KandidatCari[] } | null = null;
+const SINGGAHAN_MS = 5 * 60 * 1000;
+
+interface KandidatCari {
+  npm: string;
+  nama: string;
+  prodi: string;
+  semesterKe: number;
+  dosenPaUid: string | null;
+  dosenNama: string;
+}
+
+async function kandidatPeriode(periodeId: string): Promise<KandidatCari[]> {
+  if (singgahan && singgahan.periodeId === periodeId && singgahan.sampai > Date.now()) {
+    return singgahan.daftar;
+  }
+  const db = getAdminDb();
+  const [mhsSnap, lapSnap, subsSnap] = await Promise.all([
+    db.collection('mahasiswa').get(),
+    db.collection('laporan').where('periodeId', '==', periodeId).get(),
+    db.collection('submissions').where('periodeId', '==', periodeId).get(),
+  ]);
+  const master = new Map(mhsSnap.docs.map((d) => [(d.data() as any).npm, d.data() as any]));
+  const namaDosen = new Map<string, string>(
+    subsSnap.docs.map((d) => [(d.data() as any).dosenUid, (d.data() as any).nama ?? ''])
+  );
+  // Hanya yang punya laporan periode ini — merekalah yang diminta mengisi.
+  const daftar: KandidatCari[] = lapSnap.docs
+    .map((d) => d.data() as any)
+    .map((l) => {
+      const m = master.get(l.npm) ?? {};
+      return {
+        npm: String(l.npm),
+        nama: String(m.nama ?? ''),
+        prodi: String(m.prodi ?? l.prodi ?? ''),
+        semesterKe: Number(l.semesterKe ?? 0),
+        dosenPaUid: l.dosenPaUid ?? null,
+        dosenNama: namaDosen.get(l.dosenPaUid) ?? '',
+      };
+    })
+    .filter((k) => k.nama);
+  singgahan = { periodeId, sampai: Date.now() + SINGGAHAN_MS, daftar };
+  return daftar;
+}
+
 /** Cocokkan identitas. Nama dibandingkan longgar — spasi ganda dan besar-kecil huruf diabaikan. */
 const rapikan = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -81,6 +143,33 @@ export async function GET(req: NextRequest) {
   const periodeLabel = `${p.tahunAkademik} — Semester ${p.semester === 'genap' ? 'Genap' : 'Ganjil'}`;
 
   const daftar = await aktivasiTerbuka(ctx.periodeId);
+
+  // Pencarian ketik-langsung: mahasiswa boleh mengetik NPM ATAU nama — banyak
+  // yang hafal namanya tapi tidak hafal NPM 12 digitnya.
+  const cari = sp.get('cari');
+  if (cari !== null) {
+    const q = cari.trim().toLowerCase();
+    if (q.length < CARI_MIN) {
+      return Response.json({ hasil: [], minimal: CARI_MIN });
+    }
+    let kandidat = await kandidatPeriode(ctx.periodeId);
+    if (ctx.lingkup === 'dosen') kandidat = kandidat.filter((k) => k.dosenPaUid === ctx.dosenUid);
+    const cocok = kandidat
+      .filter((k) => k.npm.includes(q) || k.nama.toLowerCase().includes(q))
+      // Yang namanya diawali ketikan didahulukan — biasanya itu yang dicari.
+      .sort((a, b) => {
+        const ap = a.nama.toLowerCase().startsWith(q) || a.npm.startsWith(q) ? 0 : 1;
+        const bp = b.nama.toLowerCase().startsWith(q) || b.npm.startsWith(q) ? 0 : 1;
+        return ap - bp || a.nama.localeCompare(b.nama, 'id');
+      });
+    return Response.json({
+      hasil: cocok.slice(0, CARI_MAKS).map((k) => ({
+        npm: k.npm, nama: k.nama, prodi: k.prodi, semesterKe: k.semesterKe, dosenNama: k.dosenNama,
+      })),
+      lebih: Math.max(0, cocok.length - CARI_MAKS),
+      minimal: CARI_MIN,
+    });
+  }
 
   const npm = sp.get('npm');
   if (!npm) {

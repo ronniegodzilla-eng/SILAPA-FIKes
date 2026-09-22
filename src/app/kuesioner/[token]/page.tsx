@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { colors } from '@/lib/theme';
 import { Card, Icon, inputStyle, labelStyle } from '@/components/ui';
-import { PRODI_PILIHAN } from '@/lib/types';
 import type { PertanyaanKuesioner } from '@/lib/types';
 
 interface KuesionerTampil {
@@ -14,6 +13,14 @@ interface KuesionerTampil {
   wajib: boolean;
   pertanyaan: PertanyaanKuesioner[];
   sudahDiisi: boolean;
+}
+
+interface Kandidat {
+  npm: string;
+  nama: string;
+  prodi: string;
+  semesterKe: number;
+  dosenNama: string;
 }
 
 interface Mahasiswa {
@@ -37,7 +44,14 @@ export default function IsiKuesionerPage() {
 
   const [pembuka, setPembuka] = useState<{ periodeLabel: string; lingkup: string; jumlahKuesioner: number } | null>(null);
   const [galatAwal, setGalatAwal] = useState('');
-  const [form, setForm] = useState({ npm: '', nama: '', prodi: '' });
+  // Pencarian ketik-langsung, bukan tiga kolom isian: NPM 12 digit susah
+  // diingat dan susah diketik di ponsel, dan salah satu huruf saja dulu
+  // membuat pengisian ditolak setelah semua kolom terisi.
+  const [cari, setCari] = useState('');
+  const [hasil, setHasil] = useState<Kandidat[]>([]);
+  const [lebih, setLebih] = useState(0);
+  const [mencari, setMencari] = useState(false);
+  const [minimal, setMinimal] = useState(3);
   const [memeriksa, setMemeriksa] = useState(false);
   const [galat, setGalat] = useState('');
 
@@ -62,15 +76,36 @@ export default function IsiKuesionerPage() {
       .catch((e) => setGalatAwal(e?.message ?? 'Gagal memuat halaman.'));
   }, [token]);
 
-  const muatIdentitas = useCallback(async () => {
+  // Jeda 300 ms setelah ketikan berhenti — tanpa itu tiap huruf memanggil
+  // server, dan urutan balasan bisa saling mendahului.
+  useEffect(() => {
+    const q = cari.trim();
+    if (q.length < minimal) { setHasil([]); setLebih(0); return; }
+    let batal = false;
+    setMencari(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/public/kuesioner?token=${encodeURIComponent(token)}&cari=${encodeURIComponent(q)}`)
+        .then(async (r) => (r.ok ? r.json() : { hasil: [], lebih: 0 }))
+        .then((d) => { if (batal) return; setHasil(d.hasil ?? []); setLebih(d.lebih ?? 0); })
+        .catch(() => { if (!batal) { setHasil([]); setLebih(0); } })
+        .finally(() => { if (!batal) setMencari(false); });
+    }, 300);
+    return () => { batal = true; clearTimeout(timer); };
+  }, [cari, token, minimal]);
+
+  const [terpilih, setTerpilih] = useState<Kandidat | null>(null);
+
+  const muatIdentitas = useCallback(async (k?: Kandidat) => {
+    const pakai = k ?? terpilih;
+    if (!pakai) return;
     setMemeriksa(true);
     setGalat('');
     try {
       const q = new URLSearchParams({
         token,
-        npm: form.npm.trim(),
-        nama: form.nama.trim(),
-        prodi: form.prodi,
+        npm: pakai.npm,
+        nama: pakai.nama,
+        prodi: pakai.prodi,
       });
       const r = await fetch(`/api/public/kuesioner?${q}`);
       if (!r.ok) throw new Error(await r.text());
@@ -82,7 +117,7 @@ export default function IsiKuesionerPage() {
     } finally {
       setMemeriksa(false);
     }
-  }, [token, form]);
+  }, [token, terpilih]);
 
   async function kirim() {
     if (!dibuka || !mahasiswa || mengirim) return;
@@ -146,9 +181,10 @@ export default function IsiKuesionerPage() {
   if (!mahasiswa) {
     return bungkus(
       <Card padding="22px 24px">
-        <div style={{ fontSize: 15, fontWeight: 700, color: colors.ink }}>Isi identitas Anda</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: colors.ink }}>Cari nama Anda</div>
         <span style={{ display: 'block', fontSize: 12.5, color: colors.muted, marginTop: 4, marginBottom: 16, lineHeight: 1.55 }}>
-          Periode {pembuka.periodeLabel}. Tulis persis seperti data kampus — ketiganya harus cocok.
+          Periode {pembuka.periodeLabel}. Ketik <strong>nama</strong> atau <strong>NPM</strong> Anda —
+          tidak perlu lengkap, cukup sebagian.
         </span>
 
         {pembuka.jumlahKuesioner === 0 && (
@@ -157,33 +193,56 @@ export default function IsiKuesionerPage() {
           </span>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>NPM</label>
-            <input value={form.npm} onChange={(e) => setForm({ ...form, npm: e.target.value })} style={inputStyle} inputMode="numeric" />
-          </div>
-          <div>
-            <label style={labelStyle}>Nama lengkap</label>
-            <input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Program studi</label>
-            <select value={form.prodi} onChange={(e) => setForm({ ...form, prodi: e.target.value })} style={inputStyle}>
-              <option value="">Pilih prodi…</option>
-              {PRODI_PILIHAN.map((kode) => <option key={kode} value={kode}>{kode}</option>)}
-            </select>
-          </div>
+        <input
+          value={cari}
+          onChange={(e) => setCari(e.target.value)}
+          placeholder="mis. Hafidz  atau  2010132"
+          autoFocus
+          style={inputStyle}
+        />
+
+        <div style={{ marginTop: 12 }}>
+          {cari.trim().length > 0 && cari.trim().length < minimal ? (
+            <span style={{ fontSize: 12, color: colors.faint }}>
+              Ketik minimal {minimal} huruf atau angka.
+            </span>
+          ) : mencari ? (
+            <span style={{ fontSize: 12, color: colors.faint }}>Mencari…</span>
+          ) : cari.trim().length >= minimal && hasil.length === 0 ? (
+            <span style={{ fontSize: 12.5, color: colors.muted, lineHeight: 1.5 }}>
+              Tidak ada yang cocok. Coba ketik potongan nama yang lain, atau NPM Anda.
+              Bila tetap tidak ketemu, hubungi dosen PA Anda.
+            </span>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {hasil.map((k) => (
+                <div
+                  key={k.npm}
+                  onClick={() => { setTerpilih(k); muatIdentitas(k); }}
+                  style={{
+                    padding: '11px 13px', borderRadius: 10, border: `1px solid ${colors.border}`,
+                    background: colors.surface, cursor: memeriksa ? 'wait' : 'pointer',
+                  }}
+                >
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.ink }}>{k.nama}</div>
+                  <div style={{ fontSize: 11.5, color: colors.muted, marginTop: 2 }}>
+                    NPM {k.npm} · {k.prodi} · Semester {k.semesterKe}
+                  </div>
+                  {k.dosenNama && (
+                    <div style={{ fontSize: 11, color: colors.faint, marginTop: 1 }}>Dosen PA: {k.dosenNama}</div>
+                  )}
+                </div>
+              ))}
+              {lebih > 0 && (
+                <span style={{ fontSize: 11.5, color: colors.faint }}>
+                  Masih ada {lebih} nama lain yang cocok — ketik lebih lengkap agar mengerucut.
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {galat && <span style={{ display: 'block', fontSize: 12.5, color: colors.danger, fontWeight: 600, marginTop: 12, lineHeight: 1.5 }}>{galat}</span>}
-
-        <button
-          onClick={muatIdentitas}
-          disabled={memeriksa || !form.npm.trim() || !form.nama.trim() || !form.prodi}
-          style={{ width: '100%', marginTop: 16, padding: '12px 16px', borderRadius: 10, border: 'none', background: colors.green, color: colors.white, fontSize: 13.5, fontWeight: 700, cursor: memeriksa ? 'wait' : 'pointer', opacity: !form.npm.trim() || !form.nama.trim() || !form.prodi ? 0.55 : 1 }}
-        >
-          {memeriksa ? 'Memeriksa…' : 'Lanjut'}
-        </button>
       </Card>
     );
   }
@@ -288,7 +347,7 @@ export default function IsiKuesionerPage() {
           NPM {mahasiswa.npm} · {mahasiswa.prodi} · Semester {mahasiswa.semesterKe}
         </span>
         <span style={{ display: 'block', fontSize: 11.5, color: colors.faint, marginTop: 8 }}>
-          Bukan Anda? <span onClick={() => { setMahasiswa(null); setDaftar([]); setGalat(''); }} style={{ color: colors.green, fontWeight: 700, cursor: 'pointer' }}>Ganti identitas</span>
+          Bukan Anda? <span onClick={() => { setMahasiswa(null); setDaftar([]); setTerpilih(null); setCari(''); setHasil([]); setGalat(''); }} style={{ color: colors.green, fontWeight: 700, cursor: 'pointer' }}>Ganti identitas</span>
         </span>
       </Card>
 
