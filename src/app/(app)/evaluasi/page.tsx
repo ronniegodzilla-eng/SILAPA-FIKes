@@ -152,7 +152,7 @@ export default function DashboardEvaluasiPage() {
               Pertanyaan berskala diurut dari rata-rata terendah — yang paling perlu ditindaklanjuti
               berada di atas.
             </span>
-            <HasilPertanyaanList hasil={rekap.hasil} minResponden={rekap.minResponden} />
+            <HasilPertanyaanList hasil={rekap.hasil} minResponden={rekap.minResponden} sebabDitahan={rekap.hasilDitahan} />
           </Card>
         </>
       ) : null}

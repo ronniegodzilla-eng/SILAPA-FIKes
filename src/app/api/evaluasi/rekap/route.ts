@@ -52,24 +52,32 @@ export async function GET(req: NextRequest) {
   // Bila ragu, jatuh ke 'ketat' — salah menutup lebih ringan akibatnya
   // daripada salah membuka penilaian atas seseorang.
   const kerahasiaan: string = a.kerahasiaan ?? (a.sasaran === 'fakultas' ? 'biasa' : 'ketat');
-  if (sebagaiDosen) {
-    if (kerahasiaan === 'ketat' && a.status !== 'ditutup') {
-      // Pesannya tidak menyebut topik tertentu: instrumen bertingkat ketat
-      // boleh tentang apa saja, asal menilai perorangan.
-      return new Response(
-        'Kuesioner ini bertingkat kerahasiaan ketat — hasilnya baru dapat dilihat setelah pengisian ditutup.',
-        { status: 423 }
-      );
-    }
-  }
 
-  const [jawabanSnap, laporanSnap] = await Promise.all([
+  // Instrumen ketat yang masih terbuka: dosen tetap mendapat KEPATUHAN —
+  // berapa bimbingannya yang sudah mengisi dan berapa yang belum — tapi ISI
+  // jawabannya ditahan sampai pengisian ditutup.
+  //
+  // Dulu seluruh permintaan ditolak 423, dan itu keliru arah: yang perlu
+  // dilindungi adalah jawabannya, bukan angka kepatuhannya. Tanpa angka itu
+  // dosen tidak bisa mengejar yang belum mengisi — padahal justru dialah yang
+  // paling mungkin melakukannya.
+  const hasilDitahan = sebagaiDosen && kerahasiaan === 'ketat' && a.status !== 'ditutup';
+
+  const [jawabanSnap, laporanSnap, mhsSnap] = await Promise.all([
     db.collection('kuesionerJawaban').where('aktivasiId', '==', aktivasiId).get(),
     db.collection('laporan').where('periodeId', '==', a.periodeId).get(),
+    db.collection('mahasiswa').get(),
   ]);
 
+  // Pengunduran diri yang sudah disahkan Wakil Dekan I mengeluarkan mahasiswa
+  // dari bimbingan aktif — ia tidak akan mengisi, jadi tidak boleh ikut jadi
+  // penyebut. Tandanya ada di dokumen induk, bukan di laporan periode.
+  const keluar = new Set(
+    mhsSnap.docs.map((d) => d.data() as any).filter((m) => m.mengundurkanDiri === true).map((m) => m.npm)
+  );
+
   let jawaban = jawabanSnap.docs.map((d) => d.data() as any);
-  let populasi = laporanSnap.docs.map((d) => d.data() as any);
+  let populasi = laporanSnap.docs.map((d) => d.data() as any).filter((l) => !keluar.has(l.npm));
   if (sebagaiDosen) {
     jawaban = jawaban.filter((j) => j.dosenPaUid === caller.uid);
     populasi = populasi.filter((l) => l.dosenPaUid === caller.uid);
@@ -110,7 +118,7 @@ export async function GET(req: NextRequest) {
   // Ringkasan tiap pertanyaan. Sel di bawah ambang hanya melaporkan jumlah
   // respondennya — isinya ditahan di server, tidak ikut terkirim.
   const pertanyaan = Array.isArray(a.pertanyaan) ? a.pertanyaan : [];
-  const cukup = jawaban.length >= MIN_RESPONDEN;
+  const cukup = jawaban.length >= MIN_RESPONDEN && !hasilDitahan;
   const hasil = pertanyaan.map((p: any) => {
     const nilai = jawaban.map((j) => j.jawaban?.[p.id]).filter((v) => v !== undefined && v !== null && v !== '');
     if (!cukup) return { id: p.id, teks: p.teks, jenis: p.jenis, n: nilai.length, ditahan: true };
@@ -138,6 +146,8 @@ export async function GET(req: NextRequest) {
     aktivasi: { id: aktivasiId, judul: a.judul, topik: a.topik ?? '', kerahasiaan, status: a.status, wajib: !!a.wajib, periodeId: a.periodeId },
     lingkup: sebagaiDosen ? 'bimbingan' : 'fakultas',
     minResponden: MIN_RESPONDEN,
+    /** 'belum_ditutup' = kepatuhan boleh dilihat, isi jawaban belum. */
+    hasilDitahan: hasilDitahan ? 'belum_ditutup' : null,
     ringkas: {
       target: populasi.length,
       terisi: jawaban.length,

@@ -27,6 +27,7 @@ export interface RekapKuesioner {
   aktivasi: { id: string; judul: string; topik: string; kerahasiaan: string; status: string; wajib: boolean };
   lingkup: 'fakultas' | 'bimbingan';
   minResponden: number;
+  hasilDitahan: 'belum_ditutup' | null;
   ringkas: { target: number; terisi: number; persen: number };
   distribusi: { dosen: BarisDistribusi[]; prodi: BarisDistribusi[]; semester: BarisDistribusi[] };
   hasil: HasilPertanyaan[];
@@ -121,7 +122,13 @@ function SebaranPilihan({ sebaran, n }: { sebaran: Record<string, number>; n: nu
   );
 }
 
-export function HasilPertanyaanList({ hasil, minResponden }: { hasil: HasilPertanyaan[]; minResponden: number }) {
+export function HasilPertanyaanList({
+  hasil, minResponden, sebabDitahan,
+}: {
+  hasil: HasilPertanyaan[];
+  minResponden: number;
+  sebabDitahan?: 'belum_ditutup' | null;
+}) {
   // Pertanyaan skala diurut dari rata-rata TERENDAH: yang paling perlu
   // ditindaklanjuti muncul lebih dulu, bukan terkubur di bawah.
   const urut = [...hasil].sort((a, b) => {
@@ -147,8 +154,9 @@ export function HasilPertanyaanList({ hasil, minResponden }: { hasil: HasilPerta
 
           {h.ditahan ? (
             <span style={{ fontSize: 12, color: colors.amber, lineHeight: 1.5 }}>
-              Baru {h.n} responden — isi jawaban ditahan sampai minimal {minResponden}, agar jawaban
-              perorangan tidak bisa ditelusuri.
+              {sebabDitahan === 'belum_ditutup'
+                ? `${h.n} jawaban sudah masuk — isinya baru terbuka setelah pengisian ditutup.`
+                : `Baru ${h.n} responden — isi jawaban ditahan sampai minimal ${minResponden}, agar jawaban perorangan tidak bisa ditelusuri.`}
             </span>
           ) : h.jenis === 'skala' && h.sebaran ? (
             <SebaranSkala sebaran={h.sebaran} maks={h.skalaMaks ?? 5} n={h.n} />

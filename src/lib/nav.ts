@@ -18,6 +18,7 @@ export const NAV_CONFIG: Record<Role, NavItem[]> = {
       icon: NAV_ICONS.list,
       alsoActive: ['/dosen/bimbingan/', '/dosen/mahasiswa/'],
     },
+    { href: '/dosen/evaluasi', label: 'Kuesioner', icon: NAV_ICONS.check },
   ],
   admin: [
     { href: '/admin/mahasiswa', label: 'Master Mahasiswa', icon: NAV_ICONS.database },
@@ -55,6 +56,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const PAGE_TITLES: Record<string, [string, string]> = {
   '/dosen': ['Dashboard', 'Ringkasan bimbingan akademik Anda periode ini'],
   '/dosen/bimbingan': ['Daftar Bimbingan', 'Seluruh mahasiswa bimbingan pada periode aktif'],
+  '/dosen/evaluasi': ['Kuesioner Evaluasi', 'Siapa yang belum mengisi, dan hasil untuk bimbingan Anda'],
   '/admin/mahasiswa': ['Master Mahasiswa', 'Kelola data induk mahasiswa fakultas'],
   '/admin/import': ['Import Data', 'Import massal mahasiswa baru dan nilai KRS/KHS'],
   '/admin/plotting': ['Plotting Dosen PA', 'Distribusi dan pemindahan bimbingan mahasiswa'],

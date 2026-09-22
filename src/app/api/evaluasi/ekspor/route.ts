@@ -33,13 +33,19 @@ export async function GET(req: NextRequest) {
     if (!aSnap.exists) return new Response('Kuesioner tidak ditemukan.', { status: 404 });
     const a = aSnap.data() as any;
 
-    const [jawabanSnap, laporanSnap, subsSnap] = await Promise.all([
+    const [jawabanSnap, laporanSnap, subsSnap, mhsSnap] = await Promise.all([
       db.collection('kuesionerJawaban').where('aktivasiId', '==', aktivasiId).get(),
       db.collection('laporan').where('periodeId', '==', a.periodeId).get(),
       db.collection('submissions').where('periodeId', '==', a.periodeId).get(),
+      db.collection('mahasiswa').get(),
     ]);
     const jawaban = jawabanSnap.docs.map((d) => d.data() as any);
-    const populasi = laporanSnap.docs.map((d) => d.data() as any);
+    // Penyebut sama dengan dashboard: yang sudah mengundurkan diri tidak
+    // dihitung, karena ia memang tidak akan mengisi.
+    const keluar = new Set(
+      mhsSnap.docs.map((d) => d.data() as any).filter((m) => m.mengundurkanDiri === true).map((m) => m.npm)
+    );
+    const populasi = laporanSnap.docs.map((d) => d.data() as any).filter((l) => !keluar.has(l.npm));
     const namaDosen = new Map<string, string>(subsSnap.docs.map((d) => [(d.data() as any).dosenUid, (d.data() as any).nama]));
 
     const pertanyaan: any[] = Array.isArray(a.pertanyaan) ? a.pertanyaan : [];
