@@ -378,7 +378,7 @@ function validateMahasiswa(
       akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
       nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
       skripsi: { tahap: 'belum', kendala: '' },
-      permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [],
+      permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [], kuesionerTerisi: [],
     };
 
     return {

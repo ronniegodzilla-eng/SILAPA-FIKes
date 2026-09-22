@@ -18,10 +18,10 @@ const TH: React.CSSProperties = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  dosen_pa: 'Dosen PA', admin: 'Admin', wadek1: 'Wakil Dekan I',
+  dosen_pa: 'Dosen PA', admin: 'Admin', wadek1: 'Wakil Dekan I', tim_evaluasi: 'Tim Evaluasi',
 };
 
-const ROLE_OPTIONS = ['dosen_pa', 'admin', 'wadek1'] as const;
+const ROLE_OPTIONS = ['dosen_pa', 'admin', 'wadek1', 'tim_evaluasi'] as const;
 
 function rolesLabel(roles: string[] | undefined): string {
   if (!roles || roles.length === 0) return '—';

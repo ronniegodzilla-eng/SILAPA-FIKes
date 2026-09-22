@@ -23,6 +23,7 @@ const JWKS = createRemoteJWKSet(
 function homeFor(role: Role): string {
   if (role === 'admin') return '/admin/mahasiswa';
   if (role === 'wadek1') return '/wadek';
+  if (role === 'tim_evaluasi') return '/evaluasi';
   return '/dosen';
 }
 
@@ -30,6 +31,7 @@ function requiredRole(pathname: string): Role | null {
   if (pathname.startsWith('/dosen')) return 'dosen_pa';
   if (pathname.startsWith('/admin')) return 'admin';
   if (pathname.startsWith('/wadek')) return 'wadek1';
+  if (pathname.startsWith('/evaluasi')) return 'tim_evaluasi';
   return null;
 }
 

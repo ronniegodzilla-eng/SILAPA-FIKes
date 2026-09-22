@@ -117,9 +117,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // ditampilkan (activeRole), bukan sekadar salah satu peran akun.
       const rosterOpts =
         activeRole === 'dosen_pa' ? { dosenUid: appUser.uid } : undefined;
+      // Tim evaluasi TIDAK memuat roster: koleksi submissions tertutup baginya,
+      // dan memuatnya hanya akan menggagalkan seluruh pemuatan. Nama dosen yang
+      // ia butuhkan untuk rekap datang dari cap pada tiap jawaban dan dari API
+      // rekap yang menghitung di server.
       const [hist, roster] = await Promise.all([
         data.fetchPeriodeHistory(),
-        p ? data.fetchDosenRoster(p.id, rosterOpts) : Promise.resolve([]),
+        p && activeRole !== 'tim_evaluasi'
+          ? data.fetchDosenRoster(p.id, rosterOpts)
+          : Promise.resolve([]),
       ]);
       setPeriodeHistory(hist);
       setDosenRoster(roster);

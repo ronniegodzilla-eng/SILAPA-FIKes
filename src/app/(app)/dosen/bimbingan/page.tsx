@@ -10,6 +10,7 @@ import { downloadTemplateBimbingan } from '@/lib/xlsx-template';
 import { colors, statusPill, kelengkapanPill, STATUS_LABEL, KELENGKAPAN_LABEL } from '@/lib/theme';
 import { Icon, Pill, inputStyle, labelStyle } from '@/components/ui';
 import { PaginationBar, SortableTh, useTableSort, usePagination, usePersistedState } from '@/components/table-tools';
+import { fetchAktivasi } from '@/lib/firestore/kuesioner';
 import { updateSubmissionJumlah, type ImportLengkapRow } from '@/lib/firestore/data';
 import { KELAS_PILIHAN, KONSULTASI_JENIS_PRESET, type KonsultasiEntry, type MahasiswaRecord } from '@/lib/types';
 
@@ -40,7 +41,7 @@ interface ImportRow {
 }
 
 /** Kolom yang bisa diurutkan pada tabel daftar bimbingan. */
-type SortKey = 'npm' | 'nama' | 'prodi' | 'semesterKe' | 'kelas' | 'sks' | 'ip' | 'ipk' | 'konsul' | 'status' | 'statusPengisian';
+type SortKey = 'npm' | 'nama' | 'prodi' | 'semesterKe' | 'kelas' | 'sks' | 'ip' | 'ipk' | 'konsul' | 'status' | 'statusPengisian' | 'kuesioner';
 
 interface TambahDraft {
   npm: string;
@@ -95,6 +96,18 @@ export default function DaftarBimbinganPage() {
   // tidak punya penunjuk status simpan sama sekali, jadi mengetik lewat mode
   // isi cepat dalam keadaan itu gagal TANPA pesan apa pun — nilainya tampak
   // masuk lalu hilang saat halaman dimuat ulang. Modenya ditutup sekalian.
+  // Kuesioner WAJIB yang sedang berjalan — dipakai kolom kepatuhan. Dosen
+  // hanya melihat sudah/belum; jawabannya tidak pernah sampai ke sini.
+  const [aktivasiWajib, setAktivasiWajib] = useState<string[]>([]);
+  useEffect(() => {
+    if (!periode) return;
+    fetchAktivasi(periode.id)
+      .then((a) => setAktivasiWajib(a.filter((x) => x.wajib && x.status === 'terbuka').map((x) => x.id)))
+      .catch(() => setAktivasiWajib([]));
+  }, [periode]);
+  const idWajib = new Set(aktivasiWajib);
+  const kuesionerWajib = aktivasiWajib.length;
+
   const kiriman = dosenRoster.find((d) => d.dosenUid === appUser?.uid)?.statusKirim;
   const laporanBeku = kiriman === 'dikirim' || kiriman === 'diverifikasi';
   const isiCepat = quickEdit && !laporanBeku;
@@ -141,6 +154,8 @@ export default function DaftarBimbinganPage() {
       case 'ip': return m.akademik.ipKhs;
       case 'ipk': return m.akademik.ipk ?? null;
       case 'konsul': return m.akademik.konsultasi.length;
+      // Yang belum mengisi diurut ke atas — itu yang perlu dikejar.
+      case 'kuesioner': return m.kuesionerTerisi.length;
       default: return m[key as keyof typeof m] as never;
     }
   });
@@ -223,7 +238,7 @@ export default function DaftarBimbinganPage() {
         akademik: { sksKrs: null, ipKhs: null, konsultasi: [], mkNilaiDE: [] },
         nonAkademik: { ukm: false, hima: false, bem: false, beasiswa: { ada: false, jenis: null, keterangan: '' }, prestasi: { ada: false, jenis: null, tingkat: null } },
         skripsi: { tahap: 'belum', kendala: '' },
-        permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [],
+        permasalahan: '', rekomendasi: '', statusPengisian: 'kosong', ipHistory: [], kuesionerTerisi: [],
       };
       await addMahasiswa(rec);
       // Naikkan juga hitungan bimbingan di dokumen `submissions` dosen ini —
@@ -524,7 +539,7 @@ export default function DaftarBimbinganPage() {
             <tr style={{ background: colors.subtle }}>
               {([
                 ['NPM', 'npm'], ['Nama', 'nama'], ['Prodi', 'prodi'], ['Smt', 'semesterKe'], ['Kelas', 'kelas'],
-                ['SKS', 'sks'], ['IP', 'ip'], ['IPK', 'ipk'], ['Konsul', 'konsul'], ['Status', 'status'], ['Kelengkapan', 'statusPengisian'],
+                ['SKS', 'sks'], ['IP', 'ip'], ['IPK', 'ipk'], ['Konsul', 'konsul'], ['Status', 'status'], ['Kelengkapan', 'statusPengisian'], ['Kuesioner', 'kuesioner'],
               ] as [string, SortKey][]).map(([label, key]) => (
                 <SortableTh key={key} label={label} sortKey={key} sort={sort} style={TH} />
               ))}
@@ -639,6 +654,23 @@ export default function DaftarBimbinganPage() {
                   </td>
                   <td style={{ padding: '11px 16px' }}>
                     <Pill label={KELENGKAPAN_LABEL[m.statusPengisian]} color={kp.color} bg={kp.bg} />
+                  </td>
+                  <td style={{ padding: '11px 16px' }}>
+                    {kuesionerWajib === 0 ? (
+                      <span style={{ fontSize: 12.5, color: colors.faint }}>—</span>
+                    ) : (
+                      (() => {
+                        const sudah = m.kuesionerTerisi.filter((id) => idWajib.has(id)).length;
+                        const lengkap = sudah >= kuesionerWajib;
+                        return (
+                          <Pill
+                            label={lengkap ? 'Sudah' : `${sudah}/${kuesionerWajib}`}
+                            color={lengkap ? colors.green : colors.danger}
+                            bg={lengkap ? '#E5F3EA' : '#FBF1EF'}
+                          />
+                        );
+                      })()
+                    )}
                   </td>
                 </tr>
               );

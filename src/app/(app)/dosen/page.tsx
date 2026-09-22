@@ -12,6 +12,7 @@ import { downloadWithAuth, apiFetch } from '@/lib/download';
 import { colors } from '@/lib/theme';
 import { Card, Icon } from '@/components/ui';
 import { FeatureTour, type TourStep } from '@/components/FeatureTour';
+import { TautanKuesionerCard } from '@/components/TautanKuesionerCard';
 
 const DOSEN_TOUR_STEPS: TourStep[] = [
   {
@@ -241,6 +242,8 @@ export default function DosenDashboardPage() {
       </div>
 
       <TokenIsiDataCard jumlahBimbingan={recordList.length} />
+
+      <TautanKuesionerCard jumlahSasaran={recordList.length} />
 
       <RiwayatTervalidasi dosenUid={appUser?.uid} />
 

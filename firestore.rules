@@ -23,6 +23,10 @@ service cloud.firestore {
     function isAdmin()  { return isSignedIn() && 'admin' in userRoles(); }
     function isWadek()  { return isSignedIn() && 'wadek1' in userRoles(); }
     function isDosen()  { return isSignedIn() && 'dosen_pa' in userRoles(); }
+    // Tim evaluasi: menyusun instrumen kuesioner dan membaca hasilnya. Sengaja
+    // dipisah dari admin — yang boleh membaca jawaban mahasiswa tentang dosen
+    // PA harus sesempit mungkin.
+    function isEvaluasi() { return isSignedIn() && 'tim_evaluasi' in userRoles(); }
 
     function periodeLocked(periodeId) {
       return get(/databases/$(database)/documents/periode/$(periodeId)).data.status == 'dikunci';
@@ -182,6 +186,43 @@ service cloud.firestore {
     // sini murni defence-in-depth agar koleksi ini tidak pernah bisa
     // dibaca/ditulis langsung dari client SDK oleh siapa pun.
     match /tokenIsiData/{token} {
+      allow read, write: if false;
+    }
+
+    // ── Kuesioner evaluasi ───────────────────────────────────────────────
+    // Bank instrumen. Boleh dibaca peran internal mana pun (dosen perlu tahu
+    // kuesioner apa yang sedang berjalan atas dirinya), tapi hanya tim
+    // evaluasi yang boleh menyusunnya.
+    match /kuesioner/{id} {
+      allow read: if isSignedIn();
+      allow write: if isEvaluasi();
+    }
+
+    // Pengaktifan instrumen pada satu periode — sama: terbaca, tertulis
+    // hanya oleh tim evaluasi.
+    match /kuesionerAktivasi/{id} {
+      allow read: if isSignedIn();
+      allow write: if isEvaluasi();
+    }
+
+    // JAWABAN MAHASISWA — bagian paling sensitif di aplikasi ini.
+    //
+    // Dosen PA TIDAK BOLEH membaca, termasuk jawaban bimbingannya sendiri:
+    // instrumen yang menilai dosen kehilangan seluruh maknanya bila yang
+    // dinilai bisa menelusuri siapa menulis apa. Dosen tetap melihat SIAPA
+    // yang sudah mengisi, lewat penanda `kuesionerTerisi` di dokumen laporan
+    // — bukan dari sini.
+    //
+    // Penulisan hanya lewat server (Admin SDK) karena pengisinya mahasiswa
+    // tanpa login; client SDK tidak pernah boleh menulis ke sini.
+    match /kuesionerJawaban/{id} {
+      allow read: if isEvaluasi() || isWadek();
+      allow write: if false;
+    }
+
+    // Tautan publik pengisian — divalidasi seluruhnya di server, seperti
+    // tokenIsiData. Deny-all sebagai pertahanan berlapis.
+    match /tokenKuesioner/{token} {
       allow read, write: if false;
     }
   }

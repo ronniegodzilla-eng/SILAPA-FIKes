@@ -201,6 +201,8 @@ export function homeRouteForRole(role: Role): string {
       return '/admin/mahasiswa';
     case 'wadek1':
       return '/wadek';
+    case 'tim_evaluasi':
+      return '/evaluasi';
     default:
       return '/login';
   }

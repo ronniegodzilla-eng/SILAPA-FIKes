@@ -61,6 +61,10 @@ async function seed() {
     // tetap "dibuka" untuk skenario laporan/submissions di bawah.
     await setDoc(doc(db, 'periode/write-test'), { tahunAkademik: '2099/2100', semester: 'genap', status: 'draft' });
 
+    await setDoc(doc(db, 'kuesioner/k1'), { judul: 'Instrumen uji', sasaran: 'dosen_pa', pertanyaan: [], status: 'siap' });
+    await setDoc(doc(db, 'kuesionerAktivasi/a1'), { kuesionerId: 'k1', periodeId: 'p1', judul: 'Instrumen uji', wajib: true, status: 'terbuka', pertanyaan: [] });
+    await setDoc(doc(db, 'kuesionerJawaban/a1_1001'), { aktivasiId: 'a1', npm: '1001', dosenPaUid: 'dosenA', jawaban: {} });
+    await setDoc(doc(db, 'tokenKuesioner/t1'), { periodeId: 'p1', lingkup: 'fakultas', active: true });
     await setDoc(doc(db, 'mahasiswa/1001'), {
       npm: '1001', nama: 'Mhs A', prodi: 'K3', dosenPaUid: 'dosenA',
       pkkmb: false, toefl: false, esq: false, semkesCount: 0,
@@ -290,6 +294,29 @@ async function main() {
   await check('admin tulis rekapCache → allow', () =>
     assertSucceeds(setDoc(doc(admin, 'rekapCache/2025-genap'), { computedAt: Date.now(), aggregates: {} })));
   await check('wadek baca rekapCache → allow', () => assertSucceeds(getDocFromServer(doc(wadek, 'rekapCache/2025-genap'))));
+
+  console.log('\nkuesioner evaluasi');
+  // Inti kerahasiaan fitur ini: dosen PA tidak boleh membaca jawaban mahasiswa,
+  // termasuk jawaban bimbingannya sendiri. Kuesioner yang menilai dosen
+  // kehilangan seluruh maknanya bila yang dinilai bisa menelusuri penulisnya.
+  await check('dosen baca jawaban kuesioner → deny', () =>
+    assertFails(getDocFromServer(doc(dosenA, 'kuesionerJawaban/a1_1001'))));
+  await check('admin baca jawaban kuesioner → deny', () =>
+    assertFails(getDocFromServer(doc(admin, 'kuesionerJawaban/a1_1001'))));
+  await check('wadek baca jawaban kuesioner → allow', () =>
+    assertSucceeds(getDocFromServer(doc(wadek, 'kuesionerJawaban/a1_1001'))));
+  await check('siapa pun menulis jawaban dari klien → deny', () =>
+    assertFails(setDoc(doc(admin, 'kuesionerJawaban/a1_9999'), { npm: '9999' })));
+  await check('dosen baca bank kuesioner → allow', () =>
+    assertSucceeds(getDocFromServer(doc(dosenA, 'kuesioner/k1'))));
+  await check('dosen menyusun instrumen → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'kuesioner/k9'), { judul: 'Bikinan dosen' })));
+  await check('admin menyusun instrumen → deny (wewenang tim evaluasi)', () =>
+    assertFails(setDoc(doc(admin, 'kuesioner/k8'), { judul: 'Bikinan admin' })));
+  await check('dosen mengaktifkan kuesioner → deny', () =>
+    assertFails(setDoc(doc(dosenA, 'kuesionerAktivasi/x1'), { judul: 'X' })));
+  await check('token kuesioner dibaca dari klien → deny', () =>
+    assertFails(getDocFromServer(doc(admin, 'tokenKuesioner/t1'))));
 
   await testEnv.cleanup();
 

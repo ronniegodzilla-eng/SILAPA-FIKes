@@ -109,6 +109,10 @@ export default function IsiDataMandiriPage() {
   const [selectedNpm, setSelectedNpm] = useState('');
   const [identitas, setIdentitas] = useState<{ npm: string; nama: string; prodi: string; angkatan: number; kelas: string } | null>(null);
   const [semesterKe, setSemesterKe] = useState(0);
+  // Kuesioner wajib yang belum diisi — penyimpanan ditolak server selama masih
+  // ada. Ditampilkan di sini supaya mahasiswa tahu sebabnya sebelum mengisi
+  // panjang-panjang, bukan setelah menekan simpan.
+  const [kuesionerWajib, setKuesionerWajib] = useState<{ judul: string[]; url: string | null }>({ judul: [], url: null });
   const [form, setForm] = useState<FormState | null>(null);
   // Nilai SKS/IP TERSIMPAN saat form dimuat — dipakai untuk deteksi "berubah"
   // di sisi klien (server tetap jadi sumber kebenaran, validasi ini cuma UX).
@@ -169,6 +173,7 @@ export default function IsiDataMandiriPage() {
         .then((d) => setRiwayatUnduh(d.daftar ?? []))
         .catch(() => setRiwayatUnduh([]));
       setSemesterKe(data.semesterKe);
+      setKuesionerWajib(data.kuesionerWajib ?? { judul: [], url: null });
       setSavedSks(data.akademik.sksKrs);
       setSavedIp(data.akademik.ipKhs);
       const dariServer: FormState = {
@@ -398,6 +403,28 @@ export default function IsiDataMandiriPage() {
 
         {phase === 'form' && !terkunci && form && identitas && (
           <>
+            {kuesionerWajib.judul.length > 0 && (
+              <Card style={{ background: '#FBF1EF', border: `1px solid ${colors.danger}` }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: colors.danger, display: 'block', marginBottom: 5 }}>
+                  Isi kuesioner wajib lebih dulu
+                </span>
+                <span style={{ fontSize: 12, color: colors.muted, lineHeight: 1.6, display: 'block' }}>
+                  Data di bawah belum bisa disimpan sebelum Anda mengisi:{' '}
+                  <strong style={{ color: colors.ink }}>{kuesionerWajib.judul.join(', ')}</strong>.
+                  {kuesionerWajib.url
+                    ? ' Jawaban Anda tidak dapat dilihat dosen PA secara perorangan.'
+                    : ' Mintakan tautan kuesionernya kepada dosen PA Anda.'}
+                </span>
+                {kuesionerWajib.url && (
+                  <a
+                    href={kuesionerWajib.url}
+                    style={{ display: 'inline-block', marginTop: 11, padding: '9px 16px', borderRadius: 9, background: colors.green, color: colors.white, fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}
+                  >
+                    Buka kuesioner
+                  </a>
+                )}
+              </Card>
+            )}
             {draftDipulihkan && (
               <Card style={{ background: colors.amberBg, border: `1px solid ${colors.amberText}` }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.ink, display: 'block', marginBottom: 4 }}>

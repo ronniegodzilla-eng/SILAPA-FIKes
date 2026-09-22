@@ -26,6 +26,16 @@ export const NAV_CONFIG: Record<Role, NavItem[]> = {
     { href: '/admin/periode', label: 'Kelola Periode', icon: NAV_ICONS.calendar },
     { href: '/admin/pengguna', label: 'Kelola Pengguna', icon: NAV_ICONS.users },
   ],
+  tim_evaluasi: [
+    { href: '/evaluasi', label: 'Dashboard Evaluasi', icon: NAV_ICONS.gauge },
+    {
+      href: '/evaluasi/kuesioner',
+      label: 'Bank Kuesioner',
+      icon: NAV_ICONS.list,
+      alsoActive: ['/evaluasi/kuesioner/'],
+    },
+    { href: '/evaluasi/aktivasi', label: 'Pengaktifan', icon: NAV_ICONS.calendar },
+  ],
   wadek1: [
     { href: '/wadek', label: 'Dashboard Fakultas', icon: NAV_ICONS.gauge },
     { href: '/wadek/verifikasi', label: 'Verifikasi', icon: NAV_ICONS.check },
@@ -38,6 +48,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   dosen_pa: 'Menu Dosen PA',
   admin: 'Menu Admin Fakultas',
   wadek1: 'Menu Wakil Dekan I',
+  tim_evaluasi: 'Menu Tim Evaluasi',
 };
 
 /** pathname → [title, subtitle] */
@@ -53,6 +64,9 @@ export const PAGE_TITLES: Record<string, [string, string]> = {
   '/wadek/verifikasi': ['Verifikasi Laporan', 'Terima atau kembalikan kiriman laporan dosen PA'],
   '/wadek/pengunduran': ['Pengunduran Diri', 'Validasi pengajuan pengunduran diri mahasiswa dari dosen PA dan admin'],
   '/wadek/ekspor': ['Ekspor & Arsip', 'Unduh PDF per dosen, rekap Excel, dan arsip periode terkunci'],
+  '/evaluasi': ['Dashboard Evaluasi', 'Hasil kuesioner mahasiswa dan sebaran respondennya'],
+  '/evaluasi/kuesioner': ['Bank Kuesioner', 'Susun instrumen sekali, aktifkan kapan pun dibutuhkan'],
+  '/evaluasi/aktivasi': ['Pengaktifan Kuesioner', 'Tentukan instrumen mana yang berjalan pada periode ini'],
   // Terbuka untuk semua peran — diakses lewat blok pengguna di bawah sidebar,
   // bukan lewat NAV_CONFIG yang dipisah per peran.
   '/profil': ['Profil Saya', 'Ubah data diri, foto, dan kata sandi akun Anda'],

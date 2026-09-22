@@ -3,8 +3,15 @@
  * HARD RULE (PRD §4): `npm` is ALWAYS a string. Never parse to number.
  */
 
-export type Role = 'dosen_pa' | 'admin' | 'wadek1';
+/**
+ * 'tim_evaluasi' menyusun instrumen kuesioner dan membaca hasilnya. Sengaja
+ * peran tersendiri, bukan cabang dari admin: yang boleh membaca jawaban
+ * mahasiswa tentang dosen PA harus sesempit mungkin.
+ */
+export type Role = 'dosen_pa' | 'admin' | 'wadek1' | 'tim_evaluasi';
 export type Prodi = 'K3' | 'KL' | 'S2KM';
+/** Daftar prodi untuk dropdown — satu sumber, supaya tidak ditulis ulang di tiap form. */
+export const PRODI_PILIHAN: Prodi[] = ['K3', 'KL', 'S2KM'];
 /** '-' = belum tercatat (laporan distribusi SIAKAD tidak memuat kelas). */
 export type Kelas = 'REG A' | 'REG B' | 'REG C' | 'RPL' | '-';
 /**
@@ -273,6 +280,14 @@ export interface MahasiswaRecord {
   tanggalMengundurkanDiri?: string;
   statusPengisian: StatusPengisian;
   ipHistory: IpHistoryEntry[];
+  /**
+   * Id aktivasi kuesioner yang sudah diisi mahasiswa ini pada periode berjalan.
+   *
+   * Penanda kepatuhan — sengaja menumpang di dokumen laporan, bukan koleksi
+   * tersendiri, karena di situlah dosen PA sudah punya izin baca. Ia perlu tahu
+   * SIAPA yang belum mengisi tanpa bisa menyentuh jawabannya sama sekali.
+   */
+  kuesionerTerisi: string[];
 }
 
 export interface Periode {
@@ -346,4 +361,104 @@ export interface RiwayatLaporanRow {
   jumlahKonsultasi: number;
   ipKhs: number | null;
   skripsiTahap: SkripsiTahap;
+}
+
+// ─── Kuesioner evaluasi (peran tim_evaluasi) ─────────────────────────────────
+
+export type JenisPertanyaan = 'skala' | 'pilihan' | 'teks';
+
+/**
+ * Apa yang dinilai instrumen ini. Menentukan seberapa ketat aksesnya: instrumen
+ * yang menilai dosen PA tidak boleh dibaca dosen per jawaban, sementara
+ * instrumen tentang layanan fakultas tidak perlu ditutup serapat itu.
+ */
+export type SasaranKuesioner = 'dosen_pa' | 'fakultas' | 'lainnya';
+
+export interface PertanyaanKuesioner {
+  id: string;
+  teks: string;
+  jenis: JenisPertanyaan;
+  wajib: boolean;
+  /** jenis 'pilihan' */
+  opsi?: string[];
+  /** jenis 'skala' — 1..skalaMaks, dengan label kedua ujungnya */
+  skalaMaks?: number;
+  labelMin?: string;
+  labelMaks?: string;
+}
+
+/** Instrumen di bank — tidak terikat periode, dipakai berulang. */
+export interface Kuesioner {
+  id: string;
+  judul: string;
+  deskripsi: string;
+  sasaran: SasaranKuesioner;
+  pertanyaan: PertanyaanKuesioner[];
+  /** 'siap' = boleh diaktifkan. Draft tidak muncul di daftar pengaktifan. */
+  status: 'draft' | 'siap';
+  dibuatOleh: string;
+  dibuatOlehNama: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type StatusAktivasi = 'terjadwal' | 'terbuka' | 'ditutup';
+
+/**
+ * Satu instrumen yang dijalankan pada satu periode.
+ *
+ * `pertanyaan` sengaja DISALIN dari bank, bukan dirujuk: instrumen di bank
+ * boleh disunting kapan saja untuk pemakaian berikutnya, dan tanpa salinan ini
+ * suntingan itu akan membuat jawaban yang sudah terkumpul tidak lagi cocok
+ * dengan pertanyaannya.
+ */
+export interface AktivasiKuesioner {
+  id: string;
+  kuesionerId: string;
+  periodeId: string;
+  judul: string;
+  deskripsi: string;
+  sasaran: SasaranKuesioner;
+  pertanyaan: PertanyaanKuesioner[];
+  wajib: boolean;
+  status: StatusAktivasi;
+  tutupAt: string | null;
+  dibuatOleh: string;
+  createdAt?: unknown;
+}
+
+/**
+ * Jawaban seorang mahasiswa atas satu aktivasi.
+ *
+ * Prodi, semester, dan dosen PA DICAP saat pengisian, tidak dibaca ulang saat
+ * rekap dibuat: plotting bisa memindahkan bimbingan, dan nomor semester berubah
+ * tiap periode. Tanpa cap ini, rekap yang sama akan menghasilkan angka berbeda
+ * bila dicetak pada bulan yang berbeda.
+ */
+export interface JawabanKuesioner {
+  aktivasiId: string;
+  periodeId: string;
+  npm: string;
+  nama: string;
+  prodi: Prodi;
+  semesterKe: number;
+  dosenPaUid: string | null;
+  dosenNama: string;
+  /** id pertanyaan → nilai (angka untuk skala, teks untuk pilihan/isian) */
+  jawaban: Record<string, string | number>;
+  /** Jalur tautan yang dipakai — jejak audit, karena dosen PA juga membagikan link. */
+  sumberTautan: 'evaluasi' | 'dosen';
+  submittedAt?: unknown;
+}
+
+/** Tautan publik pengisian kuesioner. Satu tautan memuat semua aktivasi terbuka. */
+export interface TokenKuesioner {
+  token: string;
+  periodeId: string;
+  lingkup: 'fakultas' | 'dosen';
+  /** diisi bila lingkup 'dosen' — pengisian dibatasi pada bimbingannya. */
+  dosenUid?: string | null;
+  active: boolean;
+  dibuatOleh: string;
+  createdAt?: unknown;
 }

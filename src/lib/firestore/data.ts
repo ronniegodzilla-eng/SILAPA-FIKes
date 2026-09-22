@@ -141,6 +141,7 @@ function mergeRecord(master: any, laporan: any): MahasiswaRecord {
     mengundurkanDiri: master.mengundurkanDiri === true,
     tanggalMengundurkanDiri: master.tanggalMengundurkanDiri ?? undefined,
     statusPengisian: laporan?.statusPengisian ?? 'kosong',
+    kuesionerTerisi: laporan?.kuesionerTerisi ?? [],
   };
 }
 

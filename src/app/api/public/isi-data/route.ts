@@ -141,6 +141,48 @@ function pesanUndurDiri(master: any, laporan: any): string {
   return '';
 }
 
+
+/**
+ * Kuesioner WAJIB yang belum diisi mahasiswa ini, beserta tautan yang bisa
+ * langsung dipakai membukanya.
+ *
+ * Inilah gigi dari kata "wajib". Satu-satunya tuas yang benar-benar dimiliki
+ * sistem atas mahasiswa adalah pintu pengisian datanya sendiri — tidak ada
+ * login, tidak ada pemaksaan lain. Sengaja TIDAK dijadikan syarat kelengkapan
+ * laporan dosen: dosen tidak boleh mengisikan kuesioner untuk mahasiswanya,
+ * jadi mengunci tombol Kirim dosen berarti menghukumnya atas sesuatu yang di
+ * luar kendalinya.
+ *
+ * Tautannya dicarikan di sini supaya mahasiswa tidak menemui jalan buntu:
+ * tautan dosen PA-nya lebih dulu, baru tautan umum tim evaluasi.
+ */
+async function kuesionerWajibTertunda(
+  db: FirebaseFirestore.Firestore,
+  periodeId: string,
+  dosenUid: string,
+  laporan: any
+): Promise<{ judul: string[]; url: string | null }> {
+  const snap = await db
+    .collection('kuesionerAktivasi')
+    .where('periodeId', '==', periodeId)
+    .where('status', '==', 'terbuka')
+    .get();
+  const sudah: string[] = Array.isArray(laporan.kuesionerTerisi) ? laporan.kuesionerTerisi : [];
+  const tertunda = snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as any) }))
+    .filter((a) => a.wajib && !sudah.includes(a.id));
+  if (tertunda.length === 0) return { judul: [], url: null };
+
+  const tokenSnap = await db
+    .collection('tokenKuesioner')
+    .where('periodeId', '==', periodeId)
+    .where('active', '==', true)
+    .get();
+  const semua = tokenSnap.docs.map((d) => ({ token: d.id, ...(d.data() as any) }));
+  const pilih = semua.find((t) => t.lingkup === 'dosen' && t.dosenUid === dosenUid) ?? semua.find((t) => t.lingkup === 'fakultas');
+  return { judul: tertunda.map((a) => String(a.judul)), url: pilih ? `/kuesioner/${pilih.token}` : null };
+}
+
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token');
   const npm = req.nextUrl.searchParams.get('npm');
@@ -190,6 +232,7 @@ export async function GET(req: NextRequest) {
     toefl: !!master.toefl, toeflBukti: master.toeflBukti ?? '',
     esq: !!master.esq, esqBukti: master.esqBukti ?? '',
     semkes: Array.isArray(master.semkes) ? master.semkes : [],
+    kuesionerWajib: await kuesionerWajibTertunda(db, v.ctx.periodeId, v.ctx.dosenUid, laporan),
     akademik: {
       sksKrs: laporan.akademik?.sksKrs ?? null,
       krsBukti: laporan.akademik?.krsBukti ?? '',
@@ -271,6 +314,15 @@ export async function POST(req: NextRequest) {
     return new Response(
       'Data Anda sudah tersimpan dan dikunci. Bila masih perlu diperbaiki, hubungi dosen PA Anda untuk membuka kuncinya.',
       { status: 423 }
+    );
+  }
+
+  const wajib = await kuesionerWajibTertunda(db, v.ctx.periodeId, v.ctx.dosenUid, laporan);
+  if (wajib.judul.length > 0) {
+    return new Response(
+      `Isi kuesioner wajib lebih dulu sebelum menyimpan data: ${wajib.judul.join(', ')}.` +
+        (wajib.url ? ' Buka lewat tautan kuesioner pada halaman ini.' : ' Mintakan tautan kuesioner kepada dosen PA Anda.'),
+      { status: 428 }
     );
   }
 

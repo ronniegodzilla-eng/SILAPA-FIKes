@@ -8,7 +8,7 @@ import { requireRole } from '@/lib/server-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const VALID_ROLES = ['dosen_pa', 'admin', 'wadek1'];
+const VALID_ROLES = ['dosen_pa', 'admin', 'wadek1', 'tim_evaluasi'];
 
 function normalizeRoles(input: unknown): string[] | null {
   const roles = Array.isArray(input) ? input : typeof input === 'string' ? [input] : null;
