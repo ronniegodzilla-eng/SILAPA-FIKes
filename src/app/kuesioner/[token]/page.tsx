@@ -44,6 +44,10 @@ export default function IsiKuesionerPage() {
   const [mahasiswa, setMahasiswa] = useState<Mahasiswa | null>(null);
   const [daftar, setDaftar] = useState<KuesionerTampil[]>([]);
   const [dibuka, setDibuka] = useState<KuesionerTampil | null>(null);
+  // Jawaban disimpan dengan updater fungsional (prev => …), bukan menyalin
+  // `isian` dari cakupan render. Dua jawaban yang tersimpan dalam satu putaran
+  // render — mungkin saat pengisian otomatis atau ketukan beruntun di ponsel —
+  // akan saling menimpa bila memakai salinan lama.
   const [isian, setIsian] = useState<Record<string, string | number>>({});
   const [mengirim, setMengirim] = useState(false);
   const [selesai, setSelesai] = useState('');
@@ -217,7 +221,7 @@ export default function IsiKuesionerPage() {
                       return (
                         <button
                           key={n}
-                          onClick={() => setIsian({ ...isian, [p.id]: n })}
+                          onClick={() => setIsian((prev) => ({ ...prev, [p.id]: n }))}
                           style={{
                             minWidth: 44, padding: '10px 0', borderRadius: 9, fontSize: 13.5, fontWeight: 700,
                             border: `1px solid ${dipilih ? colors.green : colors.border}`,
@@ -242,7 +246,7 @@ export default function IsiKuesionerPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {(p.opsi ?? []).filter(Boolean).map((o) => (
                     <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: colors.ink, padding: '9px 12px', borderRadius: 9, border: `1px solid ${isian[p.id] === o ? colors.green : colors.border}`, background: colors.surface, cursor: 'pointer' }}>
-                      <input type="radio" name={p.id} checked={isian[p.id] === o} onChange={() => setIsian({ ...isian, [p.id]: o })} />
+                      <input type="radio" name={p.id} checked={isian[p.id] === o} onChange={() => setIsian((prev) => ({ ...prev, [p.id]: o }))} />
                       {o}
                     </label>
                   ))}
@@ -252,7 +256,7 @@ export default function IsiKuesionerPage() {
               {p.jenis === 'teks' && (
                 <textarea
                   value={String(isian[p.id] ?? '')}
-                  onChange={(e) => setIsian({ ...isian, [p.id]: e.target.value })}
+                  onChange={(e) => setIsian((prev) => ({ ...prev, [p.id]: e.target.value }))}
                   rows={3}
                   style={{ ...inputStyle, resize: 'vertical' }}
                 />
